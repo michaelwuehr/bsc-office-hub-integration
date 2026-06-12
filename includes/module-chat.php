@@ -242,7 +242,8 @@ add_action( 'wp_footer', function () {
     /* Trusted-Shops-Badge nach unten links verbannen – der Chat wohnt unten rechts.
        !important im Stylesheet überstimmt die Inline-Styles des TS-Scripts. */
     div[id^='trustbadge-container']{left:18px!important;right:auto!important}
-    #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:58px;height:58px;border-radius:50%;background:#4b5a42;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:24px;line-height:1;transition:opacity .25s ease,transform .25s ease}
+    #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:58px;height:58px;border-radius:50%;background:#4b5a42;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:opacity .25s ease,transform .25s ease}
+    #bschi-chat-btn svg{width:28px;height:28px;display:block}
     #bschi-chat-btn.bschi-scroll-hide{opacity:0;transform:translateY(90px);pointer-events:none}
     #bschi-chat-btn .bschi-unread{position:absolute;top:-4px;right:-4px;background:#b54343;color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px}
     #bschi-chat-panel{position:fixed;right:18px;bottom:88px;z-index:99999;width:360px;max-width:calc(100vw - 36px);height:520px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden;font-family:inherit}
@@ -265,8 +266,10 @@ add_action( 'wp_footer', function () {
     .bschi-msg a{color:#4b5a42;text-decoration:underline}
     .bschi-typing{font-size:11px;color:#999;padding:0 16px 6px;display:none}
     .bschi-blocked{display:none;font-size:12px;color:#b54343;background:#fdf0f0;padding:9px 14px;border-top:1px solid #f2dada;text-align:center}
+    .bschi-offline{display:none;font-size:11px;color:#7a6f5d;background:#f6f1e7;padding:7px 14px;border-bottom:1px solid #ece4d4;text-align:center}
     .bschi-chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid #e4e0d8;background:#fff;align-items:flex-end}
-    .bschi-chat-input textarea{flex:1;border:1px solid #ddd;border-radius:10px;padding:9px 11px;font-size:13px;resize:none;height:38px;max-height:110px;overflow-y:auto;font-family:inherit;line-height:1.4}
+    /* min/max mit !important gegen Theme-Styles (Flatsome gibt textareas grosse min-height) */
+    #bschi-chat-panel .bschi-chat-input textarea{flex:1;border:1px solid #ddd;border-radius:10px;padding:8px 11px!important;font-size:13px;resize:none;height:38px;min-height:38px!important;max-height:110px!important;overflow-y:auto;font-family:inherit;line-height:1.4;box-sizing:border-box;margin:0}
     .bschi-chat-input button{background:#4b5a42;color:#fff;border:none;border-radius:10px;min-width:44px;height:38px;cursor:pointer;font-size:16px;flex:none}
     .bschi-chat-input .bschi-attach{background:#f0efe9;color:#4b5a42}
     .bschi-files-hint{font-size:11px;color:#777;padding:0 12px 8px;background:#fff;display:none}
@@ -278,7 +281,12 @@ add_action( 'wp_footer', function () {
     #bschi-agcard .bschi-agpos{font-size:12px;color:#4b5a42;font-weight:600;margin-top:2px}
     #bschi-agcard .bschi-agbio{font-size:12px;color:#666;margin-top:10px;line-height:1.5;text-align:left;white-space:pre-wrap}
     </style>
-    <button id="bschi-chat-btn" type="button" aria-label="Chat öffnen">&#128172;<span class="bschi-unread" id="bschi-chat-unread"></span></button>
+    <button id="bschi-chat-btn" type="button" aria-label="Chat öffnen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        <circle cx="8.5" cy="11.5" r=".8" fill="#fff" stroke="none"/><circle cx="12.5" cy="11.5" r=".8" fill="#fff" stroke="none"/><circle cx="16.5" cy="11.5" r=".8" fill="#fff" stroke="none"/>
+      </svg>
+      <span class="bschi-unread" id="bschi-chat-unread"></span></button>
     <div id="bschi-chat-panel" role="dialog" aria-label="Seifensieder Chat">
       <div class="bschi-chat-head">
         <div class="bschi-htitle">
@@ -287,15 +295,16 @@ add_action( 'wp_footer', function () {
         </div>
         <button class="bschi-chat-close" type="button" aria-label="Schließen">&times;</button>
       </div>
+      <div class="bschi-offline" id="bschi-chat-offline">Im Moment ist niemand von uns online – schreib uns trotzdem, wir melden uns, sobald wir wieder da sind.</div>
       <div class="bschi-chat-msgs" id="bschi-chat-msgs"><div style="text-align:center;color:#999;font-size:12px;padding:24px">Lade Nachrichten…</div></div>
       <div class="bschi-typing" id="bschi-chat-typing">Bearbeiter tippt…</div>
       <div class="bschi-blocked" id="bschi-chat-blocked">Der Chat ist für dich derzeit nicht verfügbar.</div>
       <div class="bschi-files-hint" id="bschi-files-hint"></div>
       <div class="bschi-chat-input" id="bschi-chat-inputbar">
-        <button class="bschi-attach" type="button" id="bschi-chat-attach" aria-label="Anhang">&#128206;</button>
+        <button class="bschi-attach" type="button" id="bschi-chat-attach" aria-label="Anhang"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
         <input type="file" id="bschi-chat-files" multiple style="display:none" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx,.zip,.heic">
         <textarea id="bschi-chat-text" placeholder="Nachricht schreiben…" rows="1"></textarea>
-        <button type="button" id="bschi-chat-send" aria-label="Senden">&#10148;</button>
+        <button type="button" id="bschi-chat-send" aria-label="Senden"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
       </div>
       <div id="bschi-agcard"><div class="bschi-agbox"><button class="bschi-agx" type="button">&times;</button><div id="bschi-agbody"></div></div></div>
     </div>
@@ -308,6 +317,7 @@ add_action( 'wp_footer', function () {
           fileInput=document.getElementById('bschi-chat-files'),hint=document.getElementById('bschi-files-hint'),
           typing=document.getElementById('bschi-chat-typing'),unread=document.getElementById('bschi-chat-unread'),
           blockedNote=document.getElementById('bschi-chat-blocked'),inputBar=document.getElementById('bschi-chat-inputbar'),
+          offlineNote=document.getElementById('bschi-chat-offline'),
           agcard=document.getElementById('bschi-agcard'),agbody=document.getElementById('bschi-agbody');
       var open=false,histTimer=null,stateTimer=null,lastCount=parseInt(localStorage.getItem('bschiChatSeen')||'0',10),
           lastTyping=0,guestTok=localStorage.getItem('bschiChatGuest')||'',sessionReady=(MODE==='customer'),isBlocked=false;
@@ -338,6 +348,7 @@ add_action( 'wp_footer', function () {
         blockedNote.style.display=v?'block':'none';
         inputBar.style.display=v?'none':'flex';
       }
+      function setStaffOnline(v){offlineNote.style.display=(v===false)?'block':'none';}
 
       function avatarHtml(m){
         var uid=m.agent_user_id||0;
@@ -396,6 +407,7 @@ add_action( 'wp_footer', function () {
           .then(function(j){
             if(!j||!j.success)return;
             setBlocked(!!(j.data&&j.data.blocked));
+            if(j.data&&'staff_online' in j.data)setStaffOnline(j.data.staff_online);
             var list=(j.data&&j.data.messages)||[];
             if(open){render(list);lastCount=list.length;localStorage.setItem('bschiChatSeen',String(lastCount));unread.style.display='none';}
             else{
@@ -409,7 +421,10 @@ add_action( 'wp_footer', function () {
         if(MODE==='guest'&&!guestTok)return;
         fetch(AJAX+'?action=bschi_chat_state&nonce='+NONCE+guestParam(),{credentials:'same-origin'})
           .then(function(r){return r.json();})
-          .then(function(j){typing.style.display=(j&&j.success&&j.data&&j.data.agent_typing)?'block':'none';})
+          .then(function(j){
+            typing.style.display=(j&&j.success&&j.data&&j.data.agent_typing)?'block':'none';
+            if(j&&j.success&&j.data&&'staff_online' in j.data)setStaffOnline(j.data.staff_online);
+          })
           .catch(function(){});
       }
 
@@ -460,7 +475,8 @@ add_action( 'wp_footer', function () {
         var message=txt.value.trim();
         if(!message&&!fileInput.files.length)return;
         if(isBlocked)return;
-        send.disabled=true;send.innerHTML='&#8987;';
+        var sendIcon=send.innerHTML;
+        send.disabled=true;send.style.opacity='.55';
         ensureSession().then(function(){
           var fd=new FormData();
           fd.append('action','bschi_chat_send');fd.append('nonce',NONCE);fd.append('message',message);
@@ -477,7 +493,7 @@ add_action( 'wp_footer', function () {
             }
           })
           .catch(function(){alert('Senden fehlgeschlagen');})
-          .finally(function(){send.disabled=false;send.innerHTML='&#10148;';});
+          .finally(function(){send.disabled=false;send.style.opacity='';send.innerHTML=sendIcon;});
       }
       send.addEventListener('click',doSend);
 
