@@ -110,10 +110,25 @@ add_action( 'wp_ajax_bschi_chat_attachment', function () {
         wp_die( 'Anhang nicht gefunden.', '', [ 'response' => 404 ] );
     }
     nocache_headers();
-    header( 'Content-Type: ' . $bin['content_type'] );
-    if ( $bin['disposition'] ) {
-        header( 'Content-Disposition: ' . $bin['disposition'] );
+    // Hub-gelieferten Content-Type nie ungefiltert durchreichen (Stored XSS,
+    // z.B. text/html im Shop-Origin) – nur harmlose Typen inline, Rest Download.
+    $type        = strtolower( trim( strtok( (string) $bin['content_type'], ';' ) ) );
+    $safe_inline = [ 'application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'text/plain' ];
+    $name        = '';
+    if ( $bin['disposition'] && preg_match( '/filename="?([^";]+)"?/i', $bin['disposition'], $m ) ) {
+        $name = sanitize_file_name( $m[1] );
     }
+    if ( $name === '' ) {
+        $name = 'anhang-' . $mid . '-' . $idx;
+    }
+    if ( in_array( $type, $safe_inline, true ) ) {
+        header( 'Content-Type: ' . $type );
+        header( 'Content-Disposition: inline; filename="' . $name . '"' );
+    } else {
+        header( 'Content-Type: application/octet-stream' );
+        header( 'Content-Disposition: attachment; filename="' . $name . '"' );
+    }
+    header( "Content-Security-Policy: sandbox; default-src 'none'" );
     echo $bin['body']; // phpcs:ignore -- binärer Datei-Stream
     exit;
 } );
