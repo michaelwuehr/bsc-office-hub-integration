@@ -310,6 +310,8 @@ add_action( 'wp_footer', function () {
           lastTyping=0,guestTok=localStorage.getItem('bschiChatGuest')||'',sessionReady=(MODE==='customer'),isBlocked=false;
 
       function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+      // Farbe kommt vom Hub – nur valide Hex-Farben in style-Attribute lassen
+      function safeColor(c){return /^#[0-9a-fA-F]{3,8}$/.test(c||'')?c:'#4b5a42';}
       function fmtTime(iso){if(!iso)return'';try{var d=new Date(iso);return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});}catch(e){return'';}}
       function guestParam(){return (MODE==='guest'&&guestTok)?'&guest='+encodeURIComponent(guestTok):'';}
 
@@ -340,8 +342,7 @@ add_action( 'wp_footer', function () {
           return '<img class="bschi-av" data-uid="'+uid+'" src="'+AJAX+'?action=bschi_chat_avatar&nonce='+NONCE+'&user_id='+uid+'" alt="">';
         }
         var ini=String(m.agent_name||'W').split(/\s+/).map(function(x){return x[0]||'';}).join('').slice(0,2);
-        var col=m.agent_color||'#4b5a42';
-        return '<button type="button" class="bschi-av" data-uid="'+uid+'" style="background:'+esc(col)+'">'+esc(ini)+'</button>';
+        return '<button type="button" class="bschi-av" data-uid="'+(parseInt(uid,10)||0)+'" style="background:'+safeColor(m.agent_color)+'">'+esc(ini)+'</button>';
       }
 
       function render(list){
@@ -376,7 +377,7 @@ add_action( 'wp_footer', function () {
             var d=j.data,ini=String(d.name||'').split(/\s+/).map(function(x){return x[0]||'';}).join('').slice(0,2);
             var pic=d.has_avatar
               ?'<img class="bschi-agphoto" src="'+AJAX+'?action=bschi_chat_avatar&nonce='+NONCE+'&user_id='+uid+'" alt="">'
-              :'<div class="bschi-agphoto" style="background:'+esc(d.color||'#4b5a42')+'">'+esc(ini)+'</div>';
+              :'<div class="bschi-agphoto" style="background:'+safeColor(d.color)+'">'+esc(ini)+'</div>';
             agbody.innerHTML=pic+'<div class="bschi-agname">'+esc(d.name)+'</div>'
               +'<div class="bschi-agpos">'+esc(d.position||'')+'</div>'
               +(d.bio?'<div class="bschi-agbio">'+esc(d.bio)+'</div>':'');
