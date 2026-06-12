@@ -245,6 +245,8 @@ add_action( 'wp_footer', function () {
     #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:74px;height:74px;border-radius:50%;background:transparent;border:none;padding:0;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);line-height:0;transition:opacity .25s ease,transform .25s ease}
     #bschi-chat-btn svg{width:100%;height:100%;display:block}
     #bschi-chat-btn.bschi-scroll-hide{opacity:0;transform:translateY(90px);pointer-events:none}
+    /* Mobil: in einer Flucht direkt ueber dem Trusted-Shops-Badge (links unten), ~20px Abstand */
+    @media(max-width:782px){#bschi-chat-btn{left:18px;right:auto;bottom:96px}}
     #bschi-chat-btn .bschi-unread{position:absolute;top:-4px;right:-4px;background:#b54343;color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px}
     #bschi-chat-panel{position:fixed;right:18px;bottom:88px;z-index:99999;width:360px;max-width:calc(100vw - 36px);height:520px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden;font-family:inherit}
     #bschi-chat-panel.open{display:flex}
