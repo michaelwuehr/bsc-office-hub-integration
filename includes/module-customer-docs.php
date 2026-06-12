@@ -102,7 +102,7 @@ add_action( 'woocommerce_account_' . BSCHI_DOCS_ENDPOINT . '_endpoint', function
 
     echo '<table class="shop_table" style="width:100%"><thead><tr>'
         . '<th>Nummer</th><th>Datum</th>'
-        . ( $typ !== 'delivery' ? '<th>Betrag</th>' : '<th>Ablieferbeleg</th>' )
+        . ( $typ !== 'delivery' ? '<th>Betrag</th>' : '<th>Status</th><th>Ablieferbeleg</th>' )
         . '<th></th></tr></thead><tbody>';
 
     foreach ( $items as $item ) {
@@ -121,6 +121,7 @@ add_action( 'woocommerce_account_' . BSCHI_DOCS_ENDPOINT . '_endpoint', function
                 : '—';
             echo '<td>' . esc_html( $amount ) . '</td>';
         } else {
+            echo '<td>' . bschi_docs_delivery_status_cell( $item ) . '</td>';
             if ( ! empty( $item['has_signature'] ) ) {
                 $sig_url = wp_nonce_url(
                     admin_url( 'admin-ajax.php?action=bschi_doc_signature&doc_id=' . rawurlencode( (string) $item['id'] ) ),
@@ -136,6 +137,69 @@ add_action( 'woocommerce_account_' . BSCHI_DOCS_ENDPOINT . '_endpoint', function
     }
     echo '</tbody></table>';
 } );
+
+/**
+ * Status-Zelle eines Lieferscheins – wie im Kundenportal:
+ * PKW-Anlieferung (Tour-Block) > Paket-Tracking > Beleg-Status.
+ */
+function bschi_docs_delivery_status_cell( array $item ): string {
+    $status_map = [
+        'created'   => 'Erstellt',
+        'released'  => 'In Bearbeitung',
+        'sent'      => 'Versendet',
+        'delivered' => 'Geliefert',
+        'cancelled' => 'Storniert',
+        'canceled'  => 'Storniert',
+    ];
+    $fmt_d  = fn( $v ) => date_i18n( 'd.m.Y', strtotime( $v ) );
+    $fmt_dt = fn( $v ) => date_i18n( 'd.m.Y H:i', strtotime( $v ) ) . ' Uhr';
+
+    $dl = is_array( $item['delivery'] ?? null ) ? $item['delivery'] : null;
+    $tr = is_array( $item['tracking'] ?? null ) ? $item['tracking'] : null;
+    $parts = [];
+
+    if ( $dl ) {
+        // PKW-Anlieferung über das Auslieferungs-Modul
+        if ( ! empty( $dl['signed_at'] ) ) {
+            $parts[] = '<strong style="color:#2e7d32">Geliefert</strong> am ' . $fmt_dt( $dl['signed_at'] )
+                . ( ! empty( $dl['signed_by'] ) ? ' · ' . esc_html( $dl['signed_by'] ) : '' );
+        } elseif ( ! empty( $dl['arrived_at'] ) ) {
+            $parts[] = '<strong style="color:#2e7d32">Zugestellt</strong> am ' . $fmt_dt( $dl['arrived_at'] );
+        } else {
+            $parts[] = '<strong>PKW-Anlieferung geplant</strong>';
+        }
+        if ( ! empty( $dl['tour_date'] ) ) {
+            $parts[] = '<small>Tour: ' . $fmt_d( $dl['tour_date'] )
+                . ( ! empty( $dl['tour_label'] ) ? ' · ' . esc_html( $dl['tour_label'] ) : '' ) . '</small>';
+        }
+        if ( empty( $dl['signed_at'] ) && ! empty( $dl['planned_at'] ) ) {
+            $parts[] = '<small>Geplante Ankunft: ' . $fmt_dt( $dl['planned_at'] ) . '</small>';
+        }
+        if ( ! empty( $dl['driver'] ) ) {
+            $parts[] = '<small>Fahrer: ' . esc_html( $dl['driver'] ) . '</small>';
+        }
+        if ( ! empty( $dl['customer_note'] ) ) {
+            $parts[] = '<small>Hinweis: ' . esc_html( $dl['customer_note'] ) . '</small>';
+        }
+    } elseif ( $tr ) {
+        // Paketversand mit Tracking
+        $lbl = $status_map[ strtolower( (string) ( $item['status'] ?? '' ) ) ] ?? 'Versendet';
+        $parts[] = '<strong' . ( $lbl === 'Geliefert' ? ' style="color:#2e7d32"' : '' ) . '>' . esc_html( $lbl ) . '</strong>'
+            . ( ! empty( $tr['sent_at'] ) ? ' am ' . $fmt_d( $tr['sent_at'] ) : '' );
+        $nr = esc_html( $tr['number'] );
+        $parts[] = '<small>Sendung: ' . ( ! empty( $tr['link'] )
+            ? '<a href="' . esc_url( $tr['link'] ) . '" target="_blank" rel="noopener">' . $nr . '</a>'
+            : $nr ) . '</small>';
+    } else {
+        $raw = strtolower( (string) ( $item['status'] ?? '' ) );
+        $parts[] = esc_html( $status_map[ $raw ] ?? ( $item['status'] ?: '—' ) );
+        if ( ! empty( $item['shipping'] ) ) {
+            $parts[] = '<small>' . esc_html( $item['shipping'] ) . '</small>';
+        }
+    }
+
+    return implode( '<br>', $parts );
+}
 
 // ─── AJAX-Proxy: PDF / Unterschrift streamen (nur eingeloggte Kunden) ────────
 

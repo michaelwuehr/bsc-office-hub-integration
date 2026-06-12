@@ -147,7 +147,9 @@ add_action( 'wp_footer', function () {
     $nonce = wp_create_nonce( 'bschi_chat' );
     ?>
     <style>
-    #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:58px;height:58px;border-radius:50%;background:#4b5a42;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:24px;line-height:1}
+    #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:58px;height:58px;border-radius:50%;background:#4b5a42;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:24px;line-height:1;transition:opacity .25s ease,transform .25s ease}
+    #bschi-chat-btn.bschi-scroll-hide{opacity:0;transform:translateY(90px);pointer-events:none}
+    @media(min-width:783px){#bschi-chat-btn{bottom:118px}#bschi-chat-panel{bottom:188px;max-height:calc(100vh - 220px)}}
     #bschi-chat-btn .bschi-unread{position:absolute;top:-4px;right:-4px;background:#b54343;color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px}
     #bschi-chat-panel{position:fixed;right:18px;bottom:88px;z-index:99999;width:360px;max-width:calc(100vw - 36px);height:520px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden;font-family:inherit}
     #bschi-chat-panel.open{display:flex}
@@ -287,6 +289,16 @@ add_action( 'wp_footer', function () {
       // Ungelesen-Badge auch bei geschlossenem Panel aktualisieren (alle 60s)
       loadHistory();
       setInterval(function(){if(!open)loadHistory();},60000);
+
+      // Mobil: Button beim Scrollen ausblenden, bei Scroll-Ruhe wieder einblenden
+      if(window.matchMedia('(max-width:782px)').matches){
+        var scrollIdle=null;
+        window.addEventListener('scroll',function(){
+          if(!open)btn.classList.add('bschi-scroll-hide');
+          clearTimeout(scrollIdle);
+          scrollIdle=setTimeout(function(){btn.classList.remove('bschi-scroll-hide');},450);
+        },{passive:true});
+      }
     })();
     </script>
     <?php
