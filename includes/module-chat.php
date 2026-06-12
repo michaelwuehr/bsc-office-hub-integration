@@ -242,14 +242,9 @@ add_action( 'wp_footer', function () {
     /* Trusted-Shops-Badge nach unten links verbannen – der Chat wohnt unten rechts.
        !important im Stylesheet überstimmt die Inline-Styles des TS-Scripts. */
     div[id^='trustbadge-container']{left:18px!important;right:auto!important}
-    #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:64px;height:64px;border-radius:50%;background:transparent;border:none;padding:0;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);line-height:0;transition:opacity .25s ease,transform .25s ease}
+    #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:74px;height:74px;border-radius:50%;background:transparent;border:none;padding:0;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);line-height:0;transition:opacity .25s ease,transform .25s ease}
     #bschi-chat-btn svg{width:100%;height:100%;display:block}
     #bschi-chat-btn.bschi-scroll-hide{opacity:0;transform:translateY(90px);pointer-events:none}
-    /* Startseite mobil: rechts mittig im Bildschirm; Unterseiten behalten die Position unten */
-    @media(max-width:782px){
-      #bschi-chat-btn.bschi-home{bottom:auto;top:calc(50% - 32px)}
-      #bschi-chat-btn.bschi-home.bschi-scroll-hide{transform:translateX(130%)}
-    }
     #bschi-chat-btn .bschi-unread{position:absolute;top:-4px;right:-4px;background:#b54343;color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px}
     #bschi-chat-panel{position:fixed;right:18px;bottom:88px;z-index:99999;width:360px;max-width:calc(100vw - 36px);height:520px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden;font-family:inherit}
     #bschi-chat-panel.open{display:flex}
@@ -297,12 +292,12 @@ add_action( 'wp_footer', function () {
     #bschi-agcard .bschi-agbio{font-size:12px;color:#666;margin-top:10px;line-height:1.5;text-align:left;white-space:pre-wrap}
     </style>
     <div id="bschi-chat-backdrop"></div>
-    <button id="bschi-chat-btn" class="<?= is_front_page() ? 'bschi-home' : ''; ?>" type="button" aria-label="Seifensieder Chat öffnen">
+    <button id="bschi-chat-btn" type="button" aria-label="Seifensieder Chat öffnen">
       <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs><path id="bschi-btn-circle" d="M 50,89 a 39,39 0 1,1 0,-78 a 39,39 0 1,1 0,78"/></defs>
         <circle cx="50" cy="50" r="49" fill="#4b5a42"/>
-        <circle cx="50" cy="50" r="31" fill="#5d6f52"/>
-        <g transform="translate(35,35) scale(1.25)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="50" cy="50" r="27" fill="#5d6f52"/>
+        <g transform="translate(37.4,37.4) scale(1.05)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
           <circle cx="8.5" cy="11.5" r=".8" fill="#fff" stroke="none"/><circle cx="12.5" cy="11.5" r=".8" fill="#fff" stroke="none"/><circle cx="16.5" cy="11.5" r=".8" fill="#fff" stroke="none"/>
         </g>
