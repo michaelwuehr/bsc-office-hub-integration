@@ -248,6 +248,9 @@ add_action( 'wp_footer', function () {
     #bschi-chat-btn .bschi-unread{position:absolute;top:-4px;right:-4px;background:#b54343;color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px}
     #bschi-chat-panel{position:fixed;right:18px;bottom:88px;z-index:99999;width:360px;max-width:calc(100vw - 36px);height:520px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden;font-family:inherit}
     #bschi-chat-panel.open{display:flex}
+    /* Mobil: Hintergrund abdunkeln + weichzeichnen, solange der Chat offen ist (Fokus) */
+    #bschi-chat-backdrop{display:none;position:fixed;inset:0;z-index:99997;background:rgba(30,28,22,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+    @media(max-width:782px){#bschi-chat-backdrop.show{display:block}}
     .bschi-chat-head{background:#4b5a42;color:#fff;padding:12px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:10px}
     .bschi-chat-head .bschi-htitle{display:flex;align-items:center;gap:10px;min-width:0}
     /* Logo: transparent, in Weiß eingefärbt, ohne Rahmen/Kasten */
@@ -271,6 +274,8 @@ add_action( 'wp_footer', function () {
     .bschi-err a,.bschi-errcard a{color:#4b5a42;font-weight:700;text-decoration:underline}
     .bschi-errcard{text-align:center;padding:28px 18px;color:#555;font-size:13px;line-height:1.7;margin:auto 0}
     .bschi-chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid #e4e0d8;background:#fff;align-items:flex-end}
+    /* Theme-Margins (Flatsome) auf Buttons/Feldern killen, sonst hängen die drei Elemente auf verschiedenen Ebenen */
+    #bschi-chat-panel .bschi-chat-input button{margin:0!important;padding:0!important;line-height:1!important;display:flex;align-items:center;justify-content:center;box-shadow:none!important}
     /* min/max mit !important gegen Theme-Styles (Flatsome gibt textareas grosse min-height) */
     #bschi-chat-panel .bschi-chat-input textarea{flex:1;border:1px solid #ddd;border-radius:10px;padding:8px 11px!important;font-size:13px;resize:none;height:38px;min-height:38px!important;max-height:110px!important;overflow-y:auto;font-family:inherit;line-height:1.4;box-sizing:border-box;margin:0}
     /* iOS zoomt bei Eingabefeldern mit Schrift < 16px automatisch hinein – am Handy 16px erzwingen */
@@ -286,6 +291,7 @@ add_action( 'wp_footer', function () {
     #bschi-agcard .bschi-agpos{font-size:12px;color:#4b5a42;font-weight:600;margin-top:2px}
     #bschi-agcard .bschi-agbio{font-size:12px;color:#666;margin-top:10px;line-height:1.5;text-align:left;white-space:pre-wrap}
     </style>
+    <div id="bschi-chat-backdrop"></div>
     <button id="bschi-chat-btn" type="button" aria-label="Chat öffnen">
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -451,8 +457,12 @@ add_action( 'wp_footer', function () {
           .catch(function(){});
       }
 
+      var backdrop=document.getElementById('bschi-chat-backdrop');
+      var isMobile=window.matchMedia('(max-width:782px)').matches;
       function setOpen(v){
         open=v;panel.classList.toggle('open',v);
+        backdrop.classList.toggle('show',v);
+        if(isMobile)document.body.style.overflow=v?'hidden':'';
         if(v){
           var p=(MODE==='guest'&&!guestTok)?Promise.resolve():ensureSession().catch(function(){setUnavailable(true);});
           p.then(function(){
@@ -467,6 +477,7 @@ add_action( 'wp_footer', function () {
       }
       btn.addEventListener('click',function(){setOpen(!open);});
       panel.querySelector('.bschi-chat-close').addEventListener('click',function(){setOpen(false);});
+      backdrop.addEventListener('click',function(){setOpen(false);});
 
       // Eingabefeld: einzeilig starten, beim Tippen/Überlaufen mitwachsen
       function autoGrow(){
