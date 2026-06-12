@@ -4,7 +4,7 @@
  * Description:  Verbindet WooCommerce mit dem BSC Office Hub: Shop-Gesundheits-Monitoring,
  *               Doppelbestellungs-Erkennung, Sale-Banner-Shortcode, Kundendokumente,
  *               Preislisten und Woidsiederei-Chat. Nachfolger des BSC WC Health Monitors.
- * Version:      3.6.4
+ * Version:      3.7.0
  * Author:       Michael Wühr
  * License:      GPL-2.0-or-later
  * Requires at least: 6.0
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-define( 'BSCHI_VERSION',          '3.6.4' );
+define( 'BSCHI_VERSION',          '3.7.0' );
 define( 'BSCHI_PLUGIN_FILE',      __FILE__ );
 define( 'BSCHI_PLUGIN_DIR',       plugin_dir_path( __FILE__ ) );
 define( 'BSCHI_SLUG',             'bsc-office-hub-integration' );
@@ -79,6 +79,12 @@ function bschi_default_settings(): array {
         'feature_customer_docs' => false,
         'feature_pricelist'     => false,
         'feature_chat'          => false,
+
+        // Badge-Layout: Chat-Badge + Trusted-Shops-Badge (Seite/Abstand/Größe je Gerät)
+        'badge_chat_d_side' => 'right', 'badge_chat_d_x' => 18, 'badge_chat_d_y' => 18, 'badge_chat_d_size' => 74,
+        'badge_chat_m_side' => 'left',  'badge_chat_m_x' => 18, 'badge_chat_m_y' => 96, 'badge_chat_m_size' => 74,
+        'badge_ts_d_side'   => 'left',  'badge_ts_d_x'   => 18,   // side 'default' = TS-Badge nicht anfassen
+        'badge_ts_m_side'   => 'left',  'badge_ts_m_x'   => 18,
 
         // Doppelbestellungen
         'double_orders_autohold'    => true,   // jüngere Bestellung automatisch auf "Wartend"

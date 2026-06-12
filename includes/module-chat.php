@@ -237,18 +237,45 @@ add_action( 'wp_footer', function () {
     $ajax  = admin_url( 'admin-ajax.php' );
     $nonce = wp_create_nonce( 'bschi_chat' );
     $logo  = get_site_icon_url( 64 ) ?: '';
+
+    // Badge-Layout aus den Plugin-Settings (Seite/Abstand/Größe je Gerät)
+    $cfg     = bschi_get_settings();
+    $layout  = function ( string $pfx, string $def_side ) use ( $cfg ): array {
+        $side = in_array( $cfg[ $pfx . '_side' ] ?? '', [ 'left', 'right' ], true ) ? $cfg[ $pfx . '_side' ] : $def_side;
+        return [
+            'side'  => $side,
+            'other' => $side === 'left' ? 'right' : 'left',
+            'x'     => (int) ( $cfg[ $pfx . '_x' ] ?? 18 ),
+            'y'     => (int) ( $cfg[ $pfx . '_y' ] ?? 18 ),
+            'size'  => (int) ( $cfg[ $pfx . '_size' ] ?? 74 ),
+        ];
+    };
+    $bd = $layout( 'badge_chat_d', 'right' );   // Desktop
+    $bm = $layout( 'badge_chat_m', 'left' );    // Mobil
+    $bd_panel = $bd['y'] + $bd['size'] + 12;
+    $bm_panel = $bm['y'] + $bm['size'] + 12;
+    $ts_css = '';
+    foreach ( [ [ 'badge_ts_d', '(min-width:783px)' ], [ 'badge_ts_m', '(max-width:782px)' ] ] as [ $pfx, $mq ] ) {
+        $side = $cfg[ $pfx . '_side' ] ?? 'left';
+        if ( in_array( $side, [ 'left', 'right' ], true ) ) {
+            $other  = $side === 'left' ? 'right' : 'left';
+            $x      = (int) ( $cfg[ $pfx . '_x' ] ?? 18 );
+            $ts_css .= "@media {$mq}{div[id^='trustbadge-container']{{$side}:{$x}px!important;{$other}:auto!important}}\n";
+        }
+    }
     ?>
     <style>
-    /* Trusted-Shops-Badge nach unten links verbannen – der Chat wohnt unten rechts.
+    /* Trusted-Shops-Badge gemäß Plugin-Settings positionieren –
        !important im Stylesheet überstimmt die Inline-Styles des TS-Scripts. */
-    div[id^='trustbadge-container']{left:18px!important;right:auto!important}
-    #bschi-chat-btn{position:fixed;right:18px;bottom:18px;z-index:99998;width:74px;height:74px;border-radius:50%;background:transparent;border:none;padding:0;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);line-height:0;transition:opacity .25s ease,transform .25s ease}
+    <?= $ts_css; ?>
+    /* Chat-Badge: Position/Größe aus den Plugin-Settings */
+    #bschi-chat-btn{position:fixed;<?= $bd['side']; ?>:<?= $bd['x']; ?>px;<?= $bd['other']; ?>:auto;bottom:<?= $bd['y']; ?>px;z-index:99998;width:<?= $bd['size']; ?>px;height:<?= $bd['size']; ?>px;border-radius:50%;background:transparent;border:none;padding:0;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);line-height:0;transition:opacity .25s ease,transform .25s ease}
     #bschi-chat-btn svg{width:100%;height:100%;display:block}
     #bschi-chat-btn.bschi-scroll-hide{opacity:0;transform:translateY(90px);pointer-events:none}
-    /* Mobil: in einer Flucht direkt ueber dem Trusted-Shops-Badge (links unten), ~20px Abstand */
-    @media(max-width:782px){#bschi-chat-btn{left:18px;right:auto;bottom:96px}}
-    #bschi-chat-btn .bschi-unread{position:absolute;top:-4px;right:-4px;background:#b54343;color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px}
-    #bschi-chat-panel{position:fixed;right:18px;bottom:88px;z-index:99999;width:360px;max-width:calc(100vw - 36px);height:520px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden;font-family:inherit}
+    @media(max-width:782px){#bschi-chat-btn{<?= $bm['side']; ?>:<?= $bm['x']; ?>px;<?= $bm['other']; ?>:auto;bottom:<?= $bm['y']; ?>px;width:<?= $bm['size']; ?>px;height:<?= $bm['size']; ?>px}}
+    #bschi-chat-btn .bschi-unread{position:absolute;top:-5px;right:-5px;background:#c0392b;color:#fff;border:2px solid #fff;border-radius:12px;min-width:24px;height:24px;font-size:13px;font-weight:800;line-height:1;display:none;align-items:center;justify-content:center;padding:0 6px;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+    #bschi-chat-panel{position:fixed;<?= $bd['side']; ?>:<?= $bd['x']; ?>px;<?= $bd['other']; ?>:auto;bottom:<?= $bd_panel; ?>px;z-index:99999;width:360px;max-width:calc(100vw - 36px);height:520px;max-height:calc(100vh - <?= $bd_panel + 30; ?>px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden;font-family:inherit}
+    @media(max-width:782px){#bschi-chat-panel{<?= $bm['side']; ?>:<?= $bm['x']; ?>px;<?= $bm['other']; ?>:auto;bottom:<?= $bm_panel; ?>px;max-height:calc(100vh - <?= $bm_panel + 24; ?>px)}}
     #bschi-chat-panel.open{display:flex}
     /* Mobil: Hintergrund abdunkeln + weichzeichnen, solange der Chat offen ist (Fokus) */
     #bschi-chat-backdrop{display:none;position:fixed;inset:0;z-index:99997;background:rgba(30,28,22,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}

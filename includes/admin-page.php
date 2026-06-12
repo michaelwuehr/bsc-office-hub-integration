@@ -82,6 +82,20 @@ function bschi_render_admin_page(): void {
             'feature_pricelist'     => isset( $_POST['feature_pricelist'] ),
             'feature_chat'          => isset( $_POST['feature_chat'] ),
 
+            // Badge-Layout
+            'badge_chat_d_side' => in_array( $_POST['badge_chat_d_side'] ?? '', [ 'left', 'right' ], true ) ? $_POST['badge_chat_d_side'] : 'right',
+            'badge_chat_d_x'    => max( 0, min( 400, (int) ( $_POST['badge_chat_d_x'] ?? 18 ) ) ),
+            'badge_chat_d_y'    => max( 0, min( 800, (int) ( $_POST['badge_chat_d_y'] ?? 18 ) ) ),
+            'badge_chat_d_size' => max( 44, min( 140, (int) ( $_POST['badge_chat_d_size'] ?? 74 ) ) ),
+            'badge_chat_m_side' => in_array( $_POST['badge_chat_m_side'] ?? '', [ 'left', 'right' ], true ) ? $_POST['badge_chat_m_side'] : 'left',
+            'badge_chat_m_x'    => max( 0, min( 400, (int) ( $_POST['badge_chat_m_x'] ?? 18 ) ) ),
+            'badge_chat_m_y'    => max( 0, min( 800, (int) ( $_POST['badge_chat_m_y'] ?? 96 ) ) ),
+            'badge_chat_m_size' => max( 44, min( 140, (int) ( $_POST['badge_chat_m_size'] ?? 74 ) ) ),
+            'badge_ts_d_side'   => in_array( $_POST['badge_ts_d_side'] ?? '', [ 'left', 'right', 'default' ], true ) ? $_POST['badge_ts_d_side'] : 'left',
+            'badge_ts_d_x'      => max( 0, min( 400, (int) ( $_POST['badge_ts_d_x'] ?? 18 ) ) ),
+            'badge_ts_m_side'   => in_array( $_POST['badge_ts_m_side'] ?? '', [ 'left', 'right', 'default' ], true ) ? $_POST['badge_ts_m_side'] : 'left',
+            'badge_ts_m_x'      => max( 0, min( 400, (int) ( $_POST['badge_ts_m_x'] ?? 18 ) ) ),
+
             // Doppelbestellungen
             'double_orders_autohold'  => isset( $_POST['double_orders_autohold'] ),
             'double_orders_window_h'  => max( 1, min( 168, (int) ( $_POST['double_orders_window_h'] ?? 48 ) ) ),
@@ -246,6 +260,39 @@ function bschi_render_admin_page(): void {
                             Preisliste für Händler/Hotel-Kunden (My-Account: "Preisliste")</label><br>
                         <label><input type="checkbox" name="feature_chat" value="1" <?= checked( $s['feature_chat'] ?? false, true, false ); ?>>
                             Woidsiederei-Chat (Floating-Widget für eingeloggte Kunden)</label>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Badges (Position &amp; Größe)</th>
+                    <td>
+                        <?php
+                        $side_sel = function ( string $name, string $cur, bool $with_default = false ) {
+                            $opts = $with_default
+                                ? [ 'left' => 'links', 'right' => 'rechts', 'default' => 'nicht anfassen' ]
+                                : [ 'left' => 'links', 'right' => 'rechts' ];
+                            $html = '<select name="' . esc_attr( $name ) . '">';
+                            foreach ( $opts as $v => $l ) {
+                                $html .= '<option value="' . esc_attr( $v ) . '"' . selected( $cur, $v, false ) . '>' . esc_html( $l ) . '</option>';
+                            }
+                            return $html . '</select>';
+                        };
+                        $num = fn( string $name, $val, int $w = 64 ) => '<input type="number" name="' . esc_attr( $name ) . '" value="' . esc_attr( $val ) . '" style="width:' . $w . 'px">';
+                        ?>
+                        <p style="margin-top:0"><strong>Seifensieder-Chat-Badge</strong></p>
+                        <p>Desktop: Seite <?= $side_sel( 'badge_chat_d_side', $s['badge_chat_d_side'] ?? 'right' ); ?>
+                            Abstand seitlich <?= $num( 'badge_chat_d_x', $s['badge_chat_d_x'] ?? 18 ); ?> px ·
+                            Abstand unten <?= $num( 'badge_chat_d_y', $s['badge_chat_d_y'] ?? 18 ); ?> px ·
+                            Größe <?= $num( 'badge_chat_d_size', $s['badge_chat_d_size'] ?? 74 ); ?> px</p>
+                        <p>Mobil: Seite <?= $side_sel( 'badge_chat_m_side', $s['badge_chat_m_side'] ?? 'left' ); ?>
+                            Abstand seitlich <?= $num( 'badge_chat_m_x', $s['badge_chat_m_x'] ?? 18 ); ?> px ·
+                            Abstand unten <?= $num( 'badge_chat_m_y', $s['badge_chat_m_y'] ?? 96 ); ?> px ·
+                            Größe <?= $num( 'badge_chat_m_size', $s['badge_chat_m_size'] ?? 74 ); ?> px</p>
+                        <p style="margin-top:14px"><strong>Trusted-Shops-Badge</strong> <span class="description">("nicht anfassen" = Original-Position des TS-Scripts)</span></p>
+                        <p>Desktop: Seite <?= $side_sel( 'badge_ts_d_side', $s['badge_ts_d_side'] ?? 'left', true ); ?>
+                            Abstand seitlich <?= $num( 'badge_ts_d_x', $s['badge_ts_d_x'] ?? 18 ); ?> px</p>
+                        <p>Mobil: Seite <?= $side_sel( 'badge_ts_m_side', $s['badge_ts_m_side'] ?? 'left', true ); ?>
+                            Abstand seitlich <?= $num( 'badge_ts_m_x', $s['badge_ts_m_x'] ?? 18 ); ?> px</p>
+                        <p class="description">Das Chat-Fenster öffnet sich automatisch auf der Seite des Chat-Badges, direkt darüber.</p>
                     </td>
                 </tr>
                 <tr>
