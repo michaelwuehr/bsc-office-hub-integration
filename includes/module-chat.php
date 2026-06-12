@@ -267,9 +267,14 @@ add_action( 'wp_footer', function () {
     .bschi-typing{font-size:11px;color:#999;padding:0 16px 6px;display:none}
     .bschi-blocked{display:none;font-size:12px;color:#b54343;background:#fdf0f0;padding:9px 14px;border-top:1px solid #f2dada;text-align:center}
     .bschi-offline{display:none;font-size:11px;color:#7a6f5d;background:#f6f1e7;padding:7px 14px;border-bottom:1px solid #ece4d4;text-align:center}
+    .bschi-err{display:none;font-size:12px;color:#8a4a2b;background:#fdf3ec;padding:9px 14px;border-bottom:1px solid #f1ddcc;text-align:center;line-height:1.5}
+    .bschi-err a,.bschi-errcard a{color:#4b5a42;font-weight:700;text-decoration:underline}
+    .bschi-errcard{text-align:center;padding:28px 18px;color:#555;font-size:13px;line-height:1.7;margin:auto 0}
     .bschi-chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid #e4e0d8;background:#fff;align-items:flex-end}
     /* min/max mit !important gegen Theme-Styles (Flatsome gibt textareas grosse min-height) */
     #bschi-chat-panel .bschi-chat-input textarea{flex:1;border:1px solid #ddd;border-radius:10px;padding:8px 11px!important;font-size:13px;resize:none;height:38px;min-height:38px!important;max-height:110px!important;overflow-y:auto;font-family:inherit;line-height:1.4;box-sizing:border-box;margin:0}
+    /* iOS zoomt bei Eingabefeldern mit Schrift < 16px automatisch hinein – am Handy 16px erzwingen */
+    @media(max-width:782px){#bschi-chat-panel .bschi-chat-input textarea{font-size:16px!important}}
     .bschi-chat-input button{background:#4b5a42;color:#fff;border:none;border-radius:10px;min-width:44px;height:38px;cursor:pointer;font-size:16px;flex:none}
     .bschi-chat-input .bschi-attach{background:#f0efe9;color:#4b5a42}
     .bschi-files-hint{font-size:11px;color:#777;padding:0 12px 8px;background:#fff;display:none}
@@ -296,6 +301,7 @@ add_action( 'wp_footer', function () {
         <button class="bschi-chat-close" type="button" aria-label="Schließen">&times;</button>
       </div>
       <div class="bschi-offline" id="bschi-chat-offline">Im Moment ist niemand von uns online – schreib uns trotzdem, wir melden uns, sobald wir wieder da sind.</div>
+      <div class="bschi-err" id="bschi-chat-error">Der Chat ist gerade nicht erreichbar. Du erreichst uns unter <a href="tel:+4999219489012">09921 94890-12</a> oder <a href="mailto:servus@woidsiederei.de">servus@woidsiederei.de</a>.</div>
       <div class="bschi-chat-msgs" id="bschi-chat-msgs"><div style="text-align:center;color:#999;font-size:12px;padding:24px">Lade Nachrichten…</div></div>
       <div class="bschi-typing" id="bschi-chat-typing">Bearbeiter tippt…</div>
       <div class="bschi-blocked" id="bschi-chat-blocked">Der Chat ist für dich derzeit nicht verfügbar.</div>
@@ -338,6 +344,7 @@ add_action( 'wp_footer', function () {
           .then(function(j){
             if(j&&j.success&&j.data&&j.data.token){
               guestTok=j.data.token;localStorage.setItem('bschiChatGuest',guestTok);sessionReady=true;
+              setUnavailable(false);
               if(j.data.blocked)setBlocked(true);
             }else{throw new Error('session');}
           });
@@ -349,6 +356,21 @@ add_action( 'wp_footer', function () {
         inputBar.style.display=v?'none':'flex';
       }
       function setStaffOnline(v){offlineNote.style.display=(v===false)?'block':'none';}
+
+      // Hub/Pi nicht erreichbar: Hinweis-Banner + (bei leerem Verlauf) Kontakt-Karte
+      var errNote=document.getElementById('bschi-chat-error');
+      function setUnavailable(v){
+        errNote.style.display=v?'block':'none';
+        if(v){
+          offlineNote.style.display='none';typing.style.display='none';
+          if(!msgs.querySelector('.bschi-row')){
+            msgs.innerHTML='<div class="bschi-errcard"><strong>Der Chat ist gerade leider nicht erreichbar.</strong><br>'
+              +'Du erreichst uns trotzdem jederzeit:<br><br>'
+              +'Telefon: <a href="tel:+4999219489012">09921 94890-12</a><br>'
+              +'E-Mail: <a href="mailto:servus@woidsiederei.de">servus@woidsiederei.de</a></div>';
+          }
+        }
+      }
 
       function avatarHtml(m){
         var uid=m.agent_user_id||0;
@@ -405,7 +427,8 @@ add_action( 'wp_footer', function () {
         fetch(AJAX+'?action=bschi_chat_history&nonce='+NONCE+guestParam(),{credentials:'same-origin'})
           .then(function(r){return r.json();})
           .then(function(j){
-            if(!j||!j.success)return;
+            if(!j||!j.success){if(open)setUnavailable(true);return;}
+            setUnavailable(false);
             setBlocked(!!(j.data&&j.data.blocked));
             if(j.data&&'staff_online' in j.data)setStaffOnline(j.data.staff_online);
             var list=(j.data&&j.data.messages)||[];
@@ -414,7 +437,7 @@ add_action( 'wp_footer', function () {
               var n=list.length-lastCount;
               if(n>0){unread.textContent=n;unread.style.display='flex';}
             }
-          }).catch(function(){});
+          }).catch(function(){if(open)setUnavailable(true);});
       }
 
       function pollState(){
@@ -431,7 +454,7 @@ add_action( 'wp_footer', function () {
       function setOpen(v){
         open=v;panel.classList.toggle('open',v);
         if(v){
-          var p=(MODE==='guest'&&!guestTok)?Promise.resolve():ensureSession().catch(function(){});
+          var p=(MODE==='guest'&&!guestTok)?Promise.resolve():ensureSession().catch(function(){setUnavailable(true);});
           p.then(function(){
             loadHistory();
             histTimer=setInterval(loadHistory,10000);
@@ -492,7 +515,7 @@ add_action( 'wp_footer', function () {
               alert((j&&j.data&&j.data.message)||'Senden fehlgeschlagen');
             }
           })
-          .catch(function(){alert('Senden fehlgeschlagen');})
+          .catch(function(){setUnavailable(true);})
           .finally(function(){send.disabled=false;send.style.opacity='';send.innerHTML=sendIcon;});
       }
       send.addEventListener('click',doSend);
