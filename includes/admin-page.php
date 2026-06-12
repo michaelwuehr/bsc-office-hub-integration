@@ -98,6 +98,15 @@ function bschi_render_admin_page(): void {
             'check_sepa'                     => isset( $_POST['check_sepa'] ),
         ] );
         bschi_reschedule_cron( $new_interval );
+
+        // Resolve-Caches leeren (gecachte Fehlschläge würden Module bis 12h blockieren)
+        global $wpdb;
+        $wpdb->query(
+            "DELETE FROM {$wpdb->options}
+             WHERE option_name LIKE '_transient_bschi_resolve_%'
+                OR option_name LIKE '_transient_timeout_bschi_resolve_%'"
+        );
+
         echo '<div class="notice notice-success inline"><p>Einstellungen gespeichert.</p></div>';
     }
 

@@ -122,7 +122,10 @@ function bschi_resolve_current_customer( bool $skip_cache = false ): ?array {
         }
     }
     $data = bschi_hub_get( '/api/v1/shop/customer/resolve?email=' . rawurlencode( $email ) );
-    set_transient( $cache_key, is_array( $data ) ? $data : [], 12 * HOUR_IN_SECONDS );
+    // Nur erfolgreiche Treffer lange cachen – Fehler/Nicht-Treffer kurz,
+    // sonst blockiert ein Hub-Ausfall die Module bis zu 12h
+    $ttl = ( is_array( $data ) && ! empty( $data['found'] ) ) ? 12 * HOUR_IN_SECONDS : 10 * MINUTE_IN_SECONDS;
+    set_transient( $cache_key, is_array( $data ) ? $data : [], $ttl );
     return $data;
 }
 
