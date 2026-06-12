@@ -248,7 +248,8 @@ add_action( 'wp_footer', function () {
     #bschi-chat-panel.open{display:flex}
     .bschi-chat-head{background:#4b5a42;color:#fff;padding:12px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:10px}
     .bschi-chat-head .bschi-htitle{display:flex;align-items:center;gap:10px;min-width:0}
-    .bschi-chat-head img.bschi-logo{width:34px;height:34px;border-radius:8px;flex:none;object-fit:cover;background:#fff}
+    /* Logo: transparent, in Weiß eingefärbt, ohne Rahmen/Kasten */
+    .bschi-chat-head img.bschi-logo{width:36px;height:36px;flex:none;object-fit:contain;background:transparent;border:none;border-radius:0;filter:brightness(0) invert(1)}
     .bschi-chat-head small{display:block;font-weight:400;font-size:11px;opacity:.85}
     .bschi-chat-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px 8px;flex:none}
     .bschi-chat-msgs{flex:1;overflow-y:auto;padding:14px;background:#faf9f6;display:flex;flex-direction:column;gap:8px}

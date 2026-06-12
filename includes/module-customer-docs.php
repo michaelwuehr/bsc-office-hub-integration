@@ -102,6 +102,7 @@ add_action( 'woocommerce_account_' . BSCHI_DOCS_ENDPOINT . '_endpoint', function
 
     echo '<table class="shop_table" style="width:100%"><thead><tr>'
         . '<th>Nummer</th><th>Datum</th>'
+        . ( $typ === 'order' ? '<th>Herkunft</th>' : '' )
         . ( $typ !== 'delivery' ? '<th>Betrag</th>' : '<th>Status</th><th>Ablieferbeleg</th>' )
         . '<th></th></tr></thead><tbody>';
 
@@ -115,6 +116,11 @@ add_action( 'woocommerce_account_' . BSCHI_DOCS_ENDPOINT . '_endpoint', function
         echo '<tr>';
         echo '<td>' . esc_html( $item['document_number'] ?: (string) $item['id'] ) . '</td>';
         echo '<td>' . esc_html( $date ) . '</td>';
+        if ( $typ === 'order' ) {
+            // Herkunft = Vertriebskanal aus dem Hub (Onlineshop, Händlershop, Läden, Märkte, …) – ohne Icon
+            $herkunft = is_array( $item['project'] ?? null ) ? trim( (string) ( $item['project']['name'] ?? '' ) ) : '';
+            echo '<td>' . esc_html( $herkunft !== '' ? $herkunft : '—' ) . '</td>';
+        }
         if ( $typ !== 'delivery' ) {
             $amount = $item['total_amount'] !== null
                 ? number_format( (float) $item['total_amount'], 2, ',', '.' ) . ' ' . ( $item['currency'] ?: 'EUR' )
