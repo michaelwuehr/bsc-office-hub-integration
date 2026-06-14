@@ -78,6 +78,9 @@ function bschi_render_admin_page(): void {
             'feature_monitoring'    => isset( $_POST['feature_monitoring'] ),
             'feature_double_orders' => isset( $_POST['feature_double_orders'] ),
             'feature_sale_banner'   => isset( $_POST['feature_sale_banner'] ),
+            'feature_aktion_banner' => isset( $_POST['feature_aktion_banner'] ),
+            'feature_event_banner'  => isset( $_POST['feature_event_banner'] ),
+            'feature_social_feed'   => isset( $_POST['feature_social_feed'] ),
             'feature_customer_docs' => isset( $_POST['feature_customer_docs'] ),
             'feature_pricelist'     => isset( $_POST['feature_pricelist'] ),
             'feature_chat'          => isset( $_POST['feature_chat'] ),
@@ -254,6 +257,12 @@ function bschi_render_admin_page(): void {
                             Doppelbestellungs-Erkennung (Echtzeit)</label><br>
                         <label><input type="checkbox" name="feature_sale_banner" value="1" <?= checked( $s['feature_sale_banner'] ?? false, true, false ); ?>>
                             Sale-Banner-Shortcode <code>[bsc_hub_sale]</code></label><br>
+                        <label><input type="checkbox" name="feature_aktion_banner" value="1" <?= checked( $s['feature_aktion_banner'] ?? false, true, false ); ?>>
+                            Aktions-Banner-Shortcode <code>[bsc_hub_aktion]</code> (Gutschein/Promo)</label><br>
+                        <label><input type="checkbox" name="feature_event_banner" value="1" <?= checked( $s['feature_event_banner'] ?? false, true, false ); ?>>
+                            Veranstaltungs-Banner <code>[bsc_hub_event]</code> (Führungen)</label><br>
+                        <label><input type="checkbox" name="feature_social_feed" value="1" <?= checked( $s['feature_social_feed'] ?? false, true, false ); ?>>
+                            Social-Media-Feed <code>[bsc_hub_social]</code></label><br>
                         <label><input type="checkbox" name="feature_customer_docs" value="1" <?= checked( $s['feature_customer_docs'] ?? false, true, false ); ?>>
                             Kundendokumente im Kundenkonto (My-Account: "Meine Dokumente")</label><br>
                         <label><input type="checkbox" name="feature_pricelist" value="1" <?= checked( $s['feature_pricelist'] ?? false, true, false ); ?>>

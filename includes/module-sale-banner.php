@@ -42,6 +42,55 @@ add_shortcode( 'bsc_hub_sale', function ( $atts ): string {
 } );
 
 /**
+ * Shortcode [bsc_hub_aktion] – schlanke Aktions-/Gutschein-Leiste
+ * (z.B. "Versandkostenfrei mit Code PRIDE20"). Datenquelle: ShopBanner Typ "aktion".
+ */
+add_shortcode( 'bsc_hub_aktion', function ( $atts ): string {
+    if ( ! bschi_feature_enabled( 'aktion_banner' ) ) {
+        return '';
+    }
+    $data = bschi_hub_get( '/api/v1/shop/banner/current?typ=aktion', BSCHI_SALE_CACHE_TTL );
+    if ( ! $data || empty( $data['active'] ) ) {
+        return '';
+    }
+    return bschi_aktion_render_banner( $data );
+} );
+
+/**
+ * Aktions-Leiste rendern.
+ */
+function bschi_aktion_render_banner( array $d ): string {
+    $bg       = $d['bg_color'] ?: '#b56b43';
+    $fg       = $d['text_color'] ?: '#ffffff';
+    $msg      = trim( (string) ( $d['headline'] ?? '' ) ) ?: trim( (string) ( $d['text'] ?? '' ) );
+    $coupon   = trim( (string) ( $d['coupon_code'] ?? '' ) );
+    $cta_text = trim( (string) ( $d['cta_text'] ?? '' ) );
+    $cta_url  = trim( (string) ( $d['cta_url'] ?? '' ) );
+
+    if ( ! $msg && ! $coupon ) {
+        return '';
+    }
+    $bgcss = 'background:linear-gradient(135deg,' . esc_attr( $bg ) . ',' . esc_attr( bschi_shade_color( $bg, -0.22 ) ) . ');';
+
+    ob_start();
+    echo bschi_banner_styles();
+    echo bschi_banner_copy_js();
+    ?>
+    <div class="bschi-akt" style="<?= $bgcss; ?>color:<?= esc_attr( $fg ); ?>">
+        <?php if ( $msg ) : ?><span class="bschi-akt__txt"><?= esc_html( $msg ); ?></span><?php endif; ?>
+        <?php if ( $coupon ) : ?>
+            <span class="bschi-akt__code"><code><?= esc_html( $coupon ); ?></code>
+                <button type="button" class="bschi-akt__copy" data-bschi-copy="<?= esc_attr( $coupon ); ?>">Kopieren</button></span>
+        <?php endif; ?>
+        <?php if ( $cta_text ) : ?>
+            <a class="bschi-akt__cta" style="color:<?= esc_attr( $bg ); ?>" href="<?= esc_url( $cta_url ?: home_url( '/shop' ) ); ?>"><?= esc_html( $cta_text ); ?></a>
+        <?php endif; ?>
+    </div>
+    <?php
+    return (string) ob_get_clean();
+}
+
+/**
  * Hex-Farbe abdunkeln/aufhellen. $amt z.B. -0.2 = 20% dunkler.
  */
 function bschi_shade_color( string $hex, float $amt ): string {
