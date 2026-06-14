@@ -81,6 +81,10 @@ function bschi_render_admin_page(): void {
             'feature_aktion_banner' => isset( $_POST['feature_aktion_banner'] ),
             'feature_event_banner'  => isset( $_POST['feature_event_banner'] ),
             'feature_social_feed'   => isset( $_POST['feature_social_feed'] ),
+            'social_platforms'      => implode( ',', array_values( array_intersect(
+                [ 'instagram', 'facebook', 'tiktok', 'linkedin', 'pinterest' ],
+                array_map( 'sanitize_key', (array) ( $_POST['social_platforms'] ?? [] ) )
+            ) ) ) ?: 'instagram,facebook',
             'feature_customer_docs' => isset( $_POST['feature_customer_docs'] ),
             'feature_pricelist'     => isset( $_POST['feature_pricelist'] ),
             'feature_chat'          => isset( $_POST['feature_chat'] ),
@@ -269,6 +273,20 @@ function bschi_render_admin_page(): void {
                             Preisliste für Händler/Hotel-Kunden (My-Account: "Preisliste")</label><br>
                         <label><input type="checkbox" name="feature_chat" value="1" <?= checked( $s['feature_chat'] ?? false, true, false ); ?>>
                             Woidsiederei-Chat (Floating-Widget für eingeloggte Kunden)</label>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Social-Media-Plattformen</th>
+                    <td>
+                        <?php
+                        $sel_plats = array_filter( array_map( 'trim', explode( ',', (string) ( $s['social_platforms'] ?? 'instagram,facebook' ) ) ) );
+                        $all_plats = [ 'instagram' => 'Instagram', 'facebook' => 'Facebook', 'tiktok' => 'TikTok', 'linkedin' => 'LinkedIn', 'pinterest' => 'Pinterest' ];
+                        foreach ( $all_plats as $key => $label ) :
+                            ?>
+                            <label style="margin-right:16px"><input type="checkbox" name="social_platforms[]" value="<?= esc_attr( $key ); ?>" <?= checked( in_array( $key, $sel_plats, true ), true, false ); ?>>
+                                <?= esc_html( $label ); ?></label>
+                        <?php endforeach; ?>
+                        <p class="description">Welche Quellen zeigt <code>[bsc_hub_social]</code>? Aktuell liefert der Hub-Feed-Import Beiträge von Instagram und Facebook; TikTok/LinkedIn/Pinterest nur, wenn dort Inhalte gepflegt werden. Der Shortcode-Parameter <code>plattform="instagram,tiktok"</code> übersteuert diese Auswahl.</p>
                     </td>
                 </tr>
                 <tr>
