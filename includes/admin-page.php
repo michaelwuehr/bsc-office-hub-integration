@@ -89,6 +89,11 @@ function bschi_render_admin_page(): void {
             'feature_pricelist'     => isset( $_POST['feature_pricelist'] ),
             'feature_chat'          => isset( $_POST['feature_chat'] ),
 
+            // Veranstaltungs-Banner [bsc_hub_event]
+            'event_layout'      => in_array( $_POST['event_layout'] ?? '', [ 'cards', 'list' ], true ) ? $_POST['event_layout'] : 'cards',
+            'event_lead_days'   => max( 0, min( 365, (int) ( $_POST['event_lead_days'] ?? 0 ) ) ),
+            'event_today_hours' => max( 0, min( 168, (int) ( $_POST['event_today_hours'] ?? 0 ) ) ),
+
             // Badge-Layout
             'badge_chat_d_side' => in_array( $_POST['badge_chat_d_side'] ?? '', [ 'left', 'right' ], true ) ? $_POST['badge_chat_d_side'] : 'right',
             'badge_chat_d_x'    => max( 0, min( 400, (int) ( $_POST['badge_chat_d_x'] ?? 18 ) ) ),
@@ -203,6 +208,8 @@ function bschi_render_admin_page(): void {
         ?>
         <?php endif; ?>
 
+        <?php bschi_render_shortcode_overview(); ?>
+
         <hr>
         <h2>Einstellungen</h2>
         <form method="post">
@@ -264,7 +271,7 @@ function bschi_render_admin_page(): void {
                         <label><input type="checkbox" name="feature_aktion_banner" value="1" <?= checked( $s['feature_aktion_banner'] ?? false, true, false ); ?>>
                             Aktions-Banner-Shortcode <code>[bsc_hub_aktion]</code> (Gutschein/Promo)</label><br>
                         <label><input type="checkbox" name="feature_event_banner" value="1" <?= checked( $s['feature_event_banner'] ?? false, true, false ); ?>>
-                            Veranstaltungs-Banner <code>[bsc_hub_event]</code> (Führungen)</label><br>
+                            Veranstaltungs-Banner <code>[bsc_hub_event]</code> + Heute-Banner <code>[bsc_hub_event_today]</code> (Führungen/Events)</label><br>
                         <label><input type="checkbox" name="feature_social_feed" value="1" <?= checked( $s['feature_social_feed'] ?? false, true, false ); ?>>
                             Social-Media-Feed <code>[bsc_hub_social]</code></label><br>
                         <label><input type="checkbox" name="feature_customer_docs" value="1" <?= checked( $s['feature_customer_docs'] ?? false, true, false ); ?>>
@@ -287,6 +294,36 @@ function bschi_render_admin_page(): void {
                                 <?= esc_html( $label ); ?></label>
                         <?php endforeach; ?>
                         <p class="description">Welche Quellen zeigt <code>[bsc_hub_social]</code>? Aktuell liefert der Hub-Feed-Import Beiträge von Instagram und Facebook; TikTok/LinkedIn/Pinterest nur, wenn dort Inhalte gepflegt werden. Der Shortcode-Parameter <code>plattform="instagram,tiktok"</code> übersteuert diese Auswahl.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Veranstaltungen <code>[bsc_hub_event]</code></th>
+                    <td>
+                        <p>
+                            <label>Darstellung:
+                                <select name="event_layout">
+                                    <option value="cards" <?= selected( ( $s['event_layout'] ?? 'cards' ), 'cards', false ); ?>>Karten-Grid (Standard)</option>
+                                    <option value="list" <?= selected( ( $s['event_layout'] ?? 'cards' ), 'list', false ); ?>>Übersichts-Liste (Agenda)</option>
+                                </select>
+                            </label>
+                            &nbsp;&nbsp;
+                            <label>Vorlaufzeit (Tage):
+                                <input type="number" name="event_lead_days" min="0" max="365" step="1" style="width:90px"
+                                    value="<?= esc_attr( (int) ( $s['event_lead_days'] ?? 0 ) ); ?>">
+                            </label>
+                            &nbsp;&nbsp;
+                            <label>Heute-Banner – Vorlauf (Stunden):
+                                <input type="number" name="event_today_hours" min="0" max="168" step="1" style="width:90px"
+                                    value="<?= esc_attr( (int) ( $s['event_today_hours'] ?? 0 ) ); ?>">
+                            </label>
+                        </p>
+                        <p class="description">
+                            <b>Darstellung:</b> „Karten-Grid" = beworbene Kacheln, „Übersichts-Liste" = kompakte Agenda mehrerer Veranstaltungen.<br>
+                            <b>Vorlaufzeit:</b> Ein Termin wird erst beworben, wenn er innerhalb der nächsten N Tage stattfindet (0 = ohne Begrenzung, alle kommenden).<br>
+                            <b>Heute-Banner-Vorlauf (Stunden):</b> Der <code>[bsc_hub_event_today]</code>-Banner zeigt Termine bis X Stunden im Voraus; das Label wechselt automatisch (Jetzt / in X Std. / Heute / Morgen / in X Tagen). 0 = nur heute.<br>
+                            Pro Shortcode übersteuerbar: <code>[bsc_hub_event layout="list" lead_days="30" limit="6"]</code> bzw. <code>[bsc_hub_event_today hours="36"]</code>.<br>
+                            Es erscheinen nur Veranstaltungen/Führungen, die im Hub als <b>„öffentlich bewerben"</b> markiert sind.
+                        </p>
                     </td>
                 </tr>
                 <tr>
@@ -690,4 +727,101 @@ function bschi_status_icon( string $status ): string {
         'error'   => '<span style="color:#d63638;font-weight:bold">ERR</span>',
         default   => '<span style="color:#555">?</span>',
     };
+}
+
+/**
+ * Übersicht aller vom Plugin bereitgestellten Shortcodes inkl. Zweck, Attributen
+ * (mit Standardwerten) und Status des zugehörigen Moduls.
+ */
+function bschi_render_shortcode_overview(): void {
+    $list = [
+        [
+            'code'    => '[bsc_hub_sale]',
+            'desc'    => 'Sale-Hero-Banner: zeigt die aktive Sale-Kampagne bzw. das aktive Shop-Banner (Typ „sale") aus dem Office Hub. Rendert nichts, wenn nichts aktiv ist – kann dauerhaft eingebunden bleiben (Cache 5 Min.).',
+            'attrs'   => [],
+            'feature' => 'sale_banner',
+        ],
+        [
+            'code'    => '[bsc_hub_aktion]',
+            'desc'    => 'Schlanke Aktions-/Gutschein-Leiste (z.B. „Versandkostenfrei mit Code PRIDE20"). Datenquelle: Shop-Banner Typ „aktion", mit Kopier-Button für den Gutscheincode.',
+            'attrs'   => [],
+            'feature' => 'aktion_banner',
+        ],
+        [
+            'code'    => '[bsc_hub_event]',
+            'desc'    => 'Karten-Grid (oder Liste) kommender Führungen/Veranstaltungen – konkrete Termine + buchbare Dauer-Angebote aus dem Office Hub.',
+            'attrs'   => [
+                [ 'limit', '6', 'Maximale Anzahl angezeigter Einträge.' ],
+                [ 'cta_url', '/kontakt', 'Ziel-Link des Buttons.' ],
+                [ 'cta_text', 'Jetzt anfragen', 'Button-Beschriftung.' ],
+                [ 'layout', '(Admin-Default)', '„cards" = Karten-Grid, „list" = Übersichts-Liste/Agenda.' ],
+                [ 'lead_days', '(Admin-Default)', 'Vorlaufzeit in Tagen (0 = ohne Begrenzung).' ],
+            ],
+            'feature' => 'event_banner',
+        ],
+        [
+            'code'    => '[bsc_hub_event_today]',
+            'desc'    => 'Kompaktes Header-Banner nur für heute (bzw. die nächsten Stunden) anstehende Veranstaltungen, mit „Mehr Infos". Zeigt nichts, wenn nichts ansteht.',
+            'attrs'   => [
+                [ 'cta_text', 'Mehr Infos', 'Button-Beschriftung.' ],
+                [ 'hours', '(Admin-Default)', 'Zeitfenster in Stunden (0 = bis Tagesende, max. 168).' ],
+            ],
+            'feature' => 'event_banner',
+        ],
+        [
+            'code'    => '[bsc_hub_social]',
+            'desc'    => 'Social-Media-Feed als eingebettete Karten (importierter Instagram/Facebook-Feed + eigene veröffentlichte Posts). Klick öffnet den Original-Post.',
+            'attrs'   => [
+                [ 'limit', '8', 'Anzahl der Posts.' ],
+                [ 'plattform', '(Admin-Default)', 'Komma-Liste, z.B. „instagram,tiktok"; übersteuert die Plugin-Einstellung.' ],
+                [ 'columns', '(Auto)', 'Anzahl der Spalten im Raster.' ],
+            ],
+            'feature' => 'social_feed',
+        ],
+        [
+            'code'    => '[bsc_hub_fuehrung_confirm]',
+            'desc'    => 'Bettet die Buchungsbestätigungs-Seite des Office Hubs ein (Kunde bestätigt/sagt ab). Auf eine Seite mit Slug „fuehrung-bestaetigung" setzen; das Token kommt aus der URL (?token=…). Der Rahmen wächst automatisch mit.',
+            'attrs'   => [
+                [ 'param', 'token', 'Name des URL-Parameters mit dem Bestätigungs-Token.' ],
+                [ 'min_height', '900', 'Mindesthöhe des eingebetteten Rahmens in Pixel.' ],
+            ],
+            'feature' => null,
+        ],
+    ];
+
+    echo '<hr><h2>Verfügbare Shortcodes</h2>';
+    echo '<p style="max-width:760px">Übersicht aller Shortcodes dieses Plugins. Einfügen per Snippets-Plugin, Gutenberg-Block „Shortcode" oder direkt im Seiteninhalt (z.&nbsp;B. Flatsome). Ein Shortcode gibt nur dann etwas aus, wenn das zugehörige Modul aktiv ist (siehe „Einstellungen") und im Office Hub passende Inhalte vorliegen.</p>';
+
+    foreach ( $list as $x ) {
+        $always = ( $x['feature'] === null );
+        $on     = $always ? true : bschi_feature_enabled( $x['feature'] );
+        $badge  = $always
+            ? '<span style="color:#646970">immer verfügbar</span>'
+            : ( $on ? '<span style="color:#00a32a;font-weight:600">● Modul aktiv</span>'
+                    : '<span style="color:#d63638;font-weight:600">● Modul deaktiviert</span>' );
+
+        echo '<div style="max-width:760px;border:1px solid #dcdcde;border-radius:8px;padding:12px 14px;margin-bottom:12px;background:#fff">';
+        echo '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+        echo '<code style="font-size:14px;background:#f0f0f1;padding:3px 8px;border-radius:4px">' . esc_html( $x['code'] ) . '</code> ' . $badge;
+        echo '<button type="button" class="button button-small" style="margin-left:auto" onclick="navigator.clipboard&&navigator.clipboard.writeText(this.dataset.sc)" data-sc="' . esc_attr( $x['code'] ) . '">Kopieren</button>';
+        echo '</div>';
+        echo '<p style="margin:8px 0 4px">' . esc_html( $x['desc'] ) . '</p>';
+
+        if ( ! empty( $x['attrs'] ) ) {
+            echo '<table class="widefat striped" style="margin-top:6px"><thead><tr>'
+               . '<th style="width:130px">Attribut</th><th style="width:130px">Standard</th><th>Bedeutung</th>'
+               . '</tr></thead><tbody>';
+            $example = rtrim( $x['code'], ']' );
+            foreach ( $x['attrs'] as $a ) {
+                echo '<tr><td><code>' . esc_html( $a[0] ) . '</code></td><td>' . esc_html( $a[1] ) . '</td><td>' . esc_html( $a[2] ) . '</td></tr>';
+                $example .= ' ' . $a[0] . '="…"';
+            }
+            $example .= ']';
+            echo '</tbody></table>';
+            echo '<p style="margin:6px 0 0;color:#646970;font-size:12px">Beispiel mit Attributen: <code>' . esc_html( $example ) . '</code></p>';
+        } else {
+            echo '<p style="margin:6px 0 0;color:#646970;font-size:12px">Keine Attribute – einfach so einfügen.</p>';
+        }
+        echo '</div>';
+    }
 }

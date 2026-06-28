@@ -4,7 +4,7 @@
  * Description:  Verbindet WooCommerce mit dem BSC Office Hub: Shop-Gesundheits-Monitoring,
  *               Doppelbestellungs-Erkennung, Sale-Banner-Shortcode, Kundendokumente,
  *               Preislisten und Woidsiederei-Chat. Nachfolger des BSC WC Health Monitors.
- * Version:      3.12.0
+ * Version:      3.19.0
  * Author:       Michael Wühr
  * License:      GPL-2.0-or-later
  * Requires at least: 6.0
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-define( 'BSCHI_VERSION',          '3.12.0' );
+define( 'BSCHI_VERSION',          '3.19.0' );
 define( 'BSCHI_PLUGIN_FILE',      __FILE__ );
 define( 'BSCHI_PLUGIN_DIR',       plugin_dir_path( __FILE__ ) );
 define( 'BSCHI_SLUG',             'bsc-office-hub-integration' );
@@ -85,6 +85,11 @@ function bschi_default_settings(): array {
 
         // Social-Media-Feed: anzuzeigende Plattformen (kommagetrennt)
         'social_platforms'      => 'instagram,facebook',
+
+        // Veranstaltungs-Banner [bsc_hub_event]
+        'event_layout'      => 'cards',  // cards (Karten-Grid) | list (Übersichts-Liste)
+        'event_lead_days'   => 0,        // Vorlaufzeit: nur Termine in den nächsten N Tagen (0 = ohne Begrenzung)
+        'event_today_hours' => 0,        // Heute-Banner: Termine bis X Stunden im Voraus zeigen (0 = nur heute)
 
         // Badge-Layout: Chat-Badge + Trusted-Shops-Badge (Seite/Abstand/Größe je Gerät)
         'badge_chat_d_side' => 'right', 'badge_chat_d_x' => 18, 'badge_chat_d_y' => 18, 'badge_chat_d_size' => 74,
@@ -172,6 +177,7 @@ require_once BSCHI_PLUGIN_DIR . 'includes/module-social.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-customer-docs.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-pricelist.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-chat.php';
+require_once BSCHI_PLUGIN_DIR . 'includes/module-fuehrung.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/admin-page.php';
 
 // ─── Cron-Lauf: alle aktiven Modul-Checks ─────────────────────────────────────
