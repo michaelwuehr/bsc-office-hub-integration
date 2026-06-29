@@ -779,6 +779,12 @@ function bschi_render_shortcode_overview(): void {
             'feature' => 'social_feed',
         ],
         [
+            'code'    => '[bsc_hub_jobs]',
+            'desc'    => 'Offene Stellen / Jobs-Seite: zeigt die im Office Hub gepflegten Stellenanzeigen (Einleitung, Aufgaben, Profil, Wir bieten, Bewerbung) inkl. Initiativbewerbung und AGG-/Gleichbehandlungs-Hinweis. Inhalte werden komplett im Hub gepflegt.',
+            'attrs'   => [],
+            'feature' => null,
+        ],
+        [
             'code'    => '[bsc_hub_fuehrung_confirm]',
             'desc'    => 'Bettet die Buchungsbestätigungs-Seite des Office Hubs ein (Kunde bestätigt/sagt ab). Auf eine Seite mit Slug „fuehrung-bestaetigung" setzen; das Token kommt aus der URL (?token=…). Der Rahmen wächst automatisch mit.',
             'attrs'   => [
