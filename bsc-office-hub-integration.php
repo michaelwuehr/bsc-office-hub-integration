@@ -4,7 +4,7 @@
  * Description:  Verbindet WooCommerce mit dem BSC Office Hub: Shop-Gesundheits-Monitoring,
  *               Doppelbestellungs-Erkennung, Sale-Banner-Shortcode, Kundendokumente,
  *               Preislisten und Woidsiederei-Chat. Nachfolger des BSC WC Health Monitors.
- * Version:      3.22.0
+ * Version:      3.22.1
  * Author:       Michael Wühr
  * License:      GPL-2.0-or-later
  * Requires at least: 6.0
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-define( 'BSCHI_VERSION',          '3.22.0' );
+define( 'BSCHI_VERSION',          '3.22.1' );
 define( 'BSCHI_PLUGIN_FILE',      __FILE__ );
 define( 'BSCHI_PLUGIN_DIR',       plugin_dir_path( __FILE__ ) );
 define( 'BSCHI_SLUG',             'bsc-office-hub-integration' );
@@ -87,7 +87,7 @@ function bschi_default_settings(): array {
         'social_platforms'      => 'instagram,facebook',
 
         // Stellenanzeigen [bsc_hub_jobs]
-        'jobs_layout'       => 'list',   // list (untereinander) | grid (Kacheln, voll) | compact (Kacheln, Aufklapper)
+        'jobs_layout'       => 'compact',// list (untereinander) | grid (Kacheln, voll) | compact (Kacheln, Aufklapper)
         'jobs_columns'      => 3,        // Spalten im Grid (2–4)
 
         // Veranstaltungs-Banner [bsc_hub_event]

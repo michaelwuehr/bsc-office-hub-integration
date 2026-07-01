@@ -75,7 +75,7 @@ add_shortcode( 'bsc_hub_jobs', function ( $atts ): string {
     // – aus Plugin-Settings, pro Shortcode übersteuerbar.
     $s   = bschi_get_settings();
     $a   = shortcode_atts( [ 'layout' => '', 'columns' => '' ], is_array( $atts ) ? $atts : [] );
-    $layout  = in_array( $a['layout'], [ 'list', 'grid', 'compact' ], true ) ? $a['layout'] : ( $s['jobs_layout'] ?? 'list' );
+    $layout  = in_array( $a['layout'], [ 'list', 'grid', 'compact' ], true ) ? $a['layout'] : ( $s['jobs_layout'] ?? 'compact' );
     $cols    = (int) ( $a['columns'] !== '' ? $a['columns'] : ( $s['jobs_columns'] ?? 3 ) );
     $cols    = max( 2, min( 4, $cols ) );
     $grid    = in_array( $layout, [ 'grid', 'compact' ], true );

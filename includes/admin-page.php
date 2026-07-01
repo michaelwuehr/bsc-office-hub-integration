@@ -90,7 +90,7 @@ function bschi_render_admin_page(): void {
             'feature_chat'          => isset( $_POST['feature_chat'] ),
 
             // Stellenanzeigen [bsc_hub_jobs]
-            'jobs_layout'       => in_array( $_POST['jobs_layout'] ?? '', [ 'list', 'grid', 'compact' ], true ) ? $_POST['jobs_layout'] : 'list',
+            'jobs_layout'       => in_array( $_POST['jobs_layout'] ?? '', [ 'list', 'grid', 'compact' ], true ) ? $_POST['jobs_layout'] : 'compact',
             'jobs_columns'      => max( 2, min( 4, (int) ( $_POST['jobs_columns'] ?? 3 ) ) ),
 
             // Veranstaltungs-Banner [bsc_hub_event]
@@ -306,9 +306,9 @@ function bschi_render_admin_page(): void {
                         <p>
                             <label>Darstellung:
                                 <select name="jobs_layout">
-                                    <option value="list" <?= selected( ( $s['jobs_layout'] ?? 'list' ), 'list', false ); ?>>Liste (untereinander) – Standard</option>
-                                    <option value="grid" <?= selected( ( $s['jobs_layout'] ?? 'list' ), 'grid', false ); ?>>Kacheln – vollständig</option>
-                                    <option value="compact" <?= selected( ( $s['jobs_layout'] ?? 'list' ), 'compact', false ); ?>>Kacheln – kompakt (mit „Mehr erfahren")</option>
+                                    <option value="list" <?= selected( ( $s['jobs_layout'] ?? 'compact' ), 'list', false ); ?>>Liste (untereinander) – Standard</option>
+                                    <option value="grid" <?= selected( ( $s['jobs_layout'] ?? 'compact' ), 'grid', false ); ?>>Kacheln – vollständig</option>
+                                    <option value="compact" <?= selected( ( $s['jobs_layout'] ?? 'compact' ), 'compact', false ); ?>>Kacheln – kompakt (mit „Mehr erfahren")</option>
                                 </select>
                             </label>
                             &nbsp;&nbsp;
