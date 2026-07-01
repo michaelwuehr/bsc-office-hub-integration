@@ -75,6 +75,7 @@ function bschi_event_signup_ajax() {
 }
 
 add_shortcode( 'bsc_hub_event', function ( $atts ): string {
+    bschi_report_link( 'events' );
     if ( ! bschi_feature_enabled( 'event_banner' ) ) {
         return '';
     }

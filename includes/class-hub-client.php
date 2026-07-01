@@ -152,3 +152,22 @@ function bschi_hub_post( string $path, array $payload ): void {
             . ' — ' . wp_remote_retrieve_body( $response ) );
     }
 }
+
+/**
+ * Meldet die Permalink-URL der aktuellen Seite (auf der ein Shortcode liegt) an den Office Hub
+ * zurück – für Deep-Links in System-Mails (Jobs/Events/Sale). Gedrosselt via Transient (12h).
+ *
+ * @param string $type 'jobs' | 'events' | 'sale'
+ */
+function bschi_report_link( string $type ): void {
+    $url = get_permalink();
+    if ( ! $url ) {
+        return;
+    }
+    $tkey = 'bschi_reported_' . $type;
+    if ( get_transient( $tkey ) === $url ) {
+        return;
+    }
+    bschi_hub_post( '/api/v1/shop/report-links', array( $type => $url ) );
+    set_transient( $tkey, $url, 12 * HOUR_IN_SECONDS );
+}

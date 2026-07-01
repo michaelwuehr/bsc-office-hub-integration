@@ -31,6 +31,7 @@ function bschi_sale_get_current( bool $skip_cache = false ): ?array {
  * Shortcode [bsc_hub_sale]
  */
 add_shortcode( 'bsc_hub_sale', function ( $atts ): string {
+    bschi_report_link( 'sale' );
     if ( ! bschi_feature_enabled( 'sale_banner' ) ) {
         return '';
     }

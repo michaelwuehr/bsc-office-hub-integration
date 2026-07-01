@@ -52,6 +52,7 @@ function bschi_jobs_styles(): string {
 }
 
 add_shortcode( 'bsc_hub_jobs', function ( $atts ): string {
+    bschi_report_link( 'jobs' );
     $data = bschi_hub_get( '/api/v1/shop/jobs', 300 );
     $meta = ( is_array( $data ) && isset( $data['meta'] ) ) ? $data['meta'] : [];
     $jobs = ( is_array( $data ) && isset( $data['jobs'] ) ) ? $data['jobs'] : [];
