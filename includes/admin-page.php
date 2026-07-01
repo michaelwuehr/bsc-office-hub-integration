@@ -89,6 +89,10 @@ function bschi_render_admin_page(): void {
             'feature_pricelist'     => isset( $_POST['feature_pricelist'] ),
             'feature_chat'          => isset( $_POST['feature_chat'] ),
 
+            // Stellenanzeigen [bsc_hub_jobs]
+            'jobs_layout'       => in_array( $_POST['jobs_layout'] ?? '', [ 'list', 'grid', 'compact' ], true ) ? $_POST['jobs_layout'] : 'list',
+            'jobs_columns'      => max( 2, min( 4, (int) ( $_POST['jobs_columns'] ?? 3 ) ) ),
+
             // Veranstaltungs-Banner [bsc_hub_event]
             'event_layout'      => in_array( $_POST['event_layout'] ?? '', [ 'cards', 'list' ], true ) ? $_POST['event_layout'] : 'cards',
             'event_lead_days'   => max( 0, min( 365, (int) ( $_POST['event_lead_days'] ?? 0 ) ) ),
@@ -294,6 +298,34 @@ function bschi_render_admin_page(): void {
                                 <?= esc_html( $label ); ?></label>
                         <?php endforeach; ?>
                         <p class="description">Welche Quellen zeigt <code>[bsc_hub_social]</code>? Aktuell liefert der Hub-Feed-Import Beiträge von Instagram und Facebook; TikTok/LinkedIn/Pinterest nur, wenn dort Inhalte gepflegt werden. Der Shortcode-Parameter <code>plattform="instagram,tiktok"</code> übersteuert diese Auswahl.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Stellenanzeigen <code>[bsc_hub_jobs]</code></th>
+                    <td>
+                        <p>
+                            <label>Darstellung:
+                                <select name="jobs_layout">
+                                    <option value="list" <?= selected( ( $s['jobs_layout'] ?? 'list' ), 'list', false ); ?>>Liste (untereinander) – Standard</option>
+                                    <option value="grid" <?= selected( ( $s['jobs_layout'] ?? 'list' ), 'grid', false ); ?>>Kacheln – vollständig</option>
+                                    <option value="compact" <?= selected( ( $s['jobs_layout'] ?? 'list' ), 'compact', false ); ?>>Kacheln – kompakt (mit „Mehr erfahren")</option>
+                                </select>
+                            </label>
+                            &nbsp;&nbsp;
+                            <label>Spalten (nur Kacheln):
+                                <select name="jobs_columns">
+                                    <?php foreach ( [ 2, 3, 4 ] as $cn ) : ?>
+                                        <option value="<?= $cn; ?>" <?= selected( (int) ( $s['jobs_columns'] ?? 3 ), $cn, false ); ?>><?= $cn; ?> Spalten</option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                        </p>
+                        <p class="description">
+                            <b>Darstellung:</b> „Liste" = Stellen untereinander (volle Breite); „Kacheln – vollständig" = Grid mit komplettem Stellentext je Kachel;
+                            „Kacheln – kompakt" = Grid mit Titel, Eckdaten und Kurzintro, Details/Bewerbung im Aufklapper „Mehr erfahren".
+                            Grid mit 2–4 Spalten; auf Tablets/Handys automatisch auf 2 bzw. 1 Spalte.<br>
+                            Pro Shortcode übersteuerbar: <code>[bsc_hub_jobs layout="compact" columns="4"]</code>.
+                        </p>
                     </td>
                 </tr>
                 <tr>
