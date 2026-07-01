@@ -62,6 +62,10 @@ function bschi_jobs_styles(): string {
     .bschi-job__more>summary::after{content:" \25B8"}
     .bschi-job__more[open]>summary::after{content:" \25BE"}
     .bschi-job__more[open]>summary{margin-bottom:.6em}
+    /* "Jetzt bewerben"-Button */
+    .bschi-job__apply{display:inline-block;margin-top:1em;background:#4b5a42;color:#fff!important;text-decoration:none;font-weight:700;letter-spacing:.2px;padding:11px 22px;border-radius:10px;line-height:1;transition:background .15s}
+    .bschi-job__apply:hover{background:#3c4835;color:#fff!important}
+    .bschi-jobs--grid .bschi-job__foot{margin-top:auto;display:flex;flex-direction:column;align-items:flex-start}
     </style>';
 }
 
@@ -80,6 +84,8 @@ add_shortcode( 'bsc_hub_jobs', function ( $atts ): string {
     $cols    = max( 2, min( 4, $cols ) );
     $grid    = in_array( $layout, [ 'grid', 'compact' ], true );
     $compact = ( $layout === 'compact' );
+    $apply_url   = trim( (string) ( $s['jobs_apply_url'] ?? '' ) );
+    $apply_label = trim( (string) ( $s['jobs_apply_label'] ?? '' ) ) ?: 'Jetzt bewerben';
 
     ob_start();
     echo bschi_jobs_styles();
@@ -102,18 +108,27 @@ add_shortcode( 'bsc_hub_jobs', function ( $atts ): string {
                     $j['employment_type'] ?? '', $j['location'] ?? '', $j['start_text'] ?? '',
                 ] ) );
                 $contact = ! empty( $j['contact'] ) ? $j['contact'] : ( $meta['jobs_contact'] ?? '' );
+                // "Jetzt bewerben"-Ziel: konfigurierte URL (z. B. Formular) > E-Mail aus dem Kontakttext (mailto)
+                $apply_href = ''; $apply_ext = false;
+                if ( $apply_url !== '' ) {
+                    $apply_href = $apply_url; $apply_ext = true;
+                } elseif ( $contact && preg_match( '/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $contact, $mm ) ) {
+                    $apply_href = 'mailto:' . $mm[0] . '?subject=' . rawurlencode( 'Bewerbung als ' . ( $j['title'] ?? '' ) );
+                }
                 ?>
                 <article class="bschi-job">
                     <h3 class="bschi-job__title"><?php echo esc_html( $j['title'] ); ?></h3>
                     <?php if ( $meta_line ) : ?><div class="bschi-job__meta"><?php echo esc_html( $meta_line ); ?></div><?php endif; ?>
                     <?php if ( ! empty( $j['intro'] ) ) : ?><p class="bschi-job__intro"><?php echo esc_html( $j['intro'] ); ?></p><?php endif; ?>
-                    <?php if ( $compact ) : ?><details class="bschi-job__more"><summary>Mehr erfahren</summary><?php endif; ?>
+                    <?php if ( $compact ) : ?><div class="bschi-job__foot"><details class="bschi-job__more"><summary>Mehr erfahren</summary><?php endif; ?>
                     <?php if ( ! empty( $j['tasks'] ) ) : ?><h4>Das wartet auf dich</h4><?php echo bschi_jobs_bullets( $j['tasks'] ); ?><?php endif; ?>
                     <?php if ( ! empty( $j['profile'] ) ) : ?><h4>Das bringst du mit</h4><?php echo bschi_jobs_bullets( $j['profile'] ); ?><?php endif; ?>
                     <?php if ( ! empty( $j['offer'] ) ) : ?><h4>Das bieten wir dir</h4><?php echo bschi_jobs_bullets( $j['offer'] ); ?><?php endif; ?>
                     <?php if ( ! empty( $j['salary_text'] ) ) : ?><p class="bschi-job__salary"><strong>Vergütung:</strong> <?php echo esc_html( $j['salary_text'] ); ?></p><?php endif; ?>
                     <?php if ( $contact ) : ?><div class="bschi-job__contact"><strong>Deine Bewerbung</strong><br><?php echo nl2br( esc_html( $contact ) ); ?></div><?php endif; ?>
                     <?php if ( $compact ) : ?></details><?php endif; ?>
+                    <?php if ( $apply_href ) : ?><a class="bschi-job__apply" href="<?php echo esc_url( $apply_href, [ 'http', 'https', 'mailto' ] ); ?>"<?php echo $apply_ext ? ' target="_blank" rel="noopener"' : ''; ?>><?php echo esc_html( $apply_label ); ?></a><?php endif; ?>
+                    <?php if ( $compact ) : ?></div><?php endif; ?>
                 </article>
             <?php endforeach; ?>
             </div>

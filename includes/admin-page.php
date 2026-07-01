@@ -92,6 +92,8 @@ function bschi_render_admin_page(): void {
             // Stellenanzeigen [bsc_hub_jobs]
             'jobs_layout'       => in_array( $_POST['jobs_layout'] ?? '', [ 'list', 'grid', 'compact' ], true ) ? $_POST['jobs_layout'] : 'compact',
             'jobs_columns'      => max( 2, min( 4, (int) ( $_POST['jobs_columns'] ?? 3 ) ) ),
+            'jobs_apply_url'    => esc_url_raw( trim( $_POST['jobs_apply_url'] ?? '' ) ),
+            'jobs_apply_label'  => sanitize_text_field( trim( $_POST['jobs_apply_label'] ?? '' ) ) ?: 'Jetzt bewerben',
 
             // Veranstaltungs-Banner [bsc_hub_event]
             'event_layout'      => in_array( $_POST['event_layout'] ?? '', [ 'cards', 'list' ], true ) ? $_POST['event_layout'] : 'cards',
@@ -320,10 +322,23 @@ function bschi_render_admin_page(): void {
                                 </select>
                             </label>
                         </p>
+                        <p>
+                            <label>„Jetzt bewerben"-Ziel (optional):
+                                <input type="url" name="jobs_apply_url" placeholder="https://…/bewerbung  (leer = E-Mail aus Kontakt)" style="width:340px"
+                                    value="<?= esc_attr( $s['jobs_apply_url'] ?? '' ); ?>">
+                            </label>
+                            &nbsp;&nbsp;
+                            <label>Button-Text:
+                                <input type="text" name="jobs_apply_label" style="width:150px"
+                                    value="<?= esc_attr( $s['jobs_apply_label'] ?? 'Jetzt bewerben' ); ?>">
+                            </label>
+                        </p>
                         <p class="description">
                             <b>Darstellung:</b> „Liste" = Stellen untereinander (volle Breite); „Kacheln – vollständig" = Grid mit komplettem Stellentext je Kachel;
                             „Kacheln – kompakt" = Grid mit Titel, Eckdaten und Kurzintro, Details/Bewerbung im Aufklapper „Mehr erfahren".
                             Grid mit 2–4 Spalten; auf Tablets/Handys automatisch auf 2 bzw. 1 Spalte.<br>
+                            <b>„Jetzt bewerben"-Button:</b> Ohne Ziel-URL wird automatisch eine E-Mail an die im Stellen-Kontakt hinterlegte Adresse
+                            geöffnet (Betreff „Bewerbung als …"). Mit Ziel-URL (z. B. Bewerbungsformular) verlinkt der Button dorthin.<br>
                             Pro Shortcode übersteuerbar: <code>[bsc_hub_jobs layout="compact" columns="4"]</code>.
                         </p>
                     </td>
