@@ -61,6 +61,12 @@ add_shortcode( 'bsc_hub_aktion', function ( $atts ): string {
  * Aktions-Leiste rendern.
  */
 function bschi_aktion_render_banner( array $d ): string {
+    // Zentrale Render-Ausgabe vom Office Hub (Generalvorlage) bevorzugen; sonst PHP-Fallback.
+    $r = isset( $d['render'] ) && is_array( $d['render'] ) ? $d['render'] : null;
+    if ( $r && ! empty( $r['html'] ) ) {
+        return ( $r['css'] ?? '' ) . $r['html'] . ( $r['js'] ?? '' );
+    }
+
     $bg       = $d['bg_color'] ?: '#b56b43';
     $fg       = $d['text_color'] ?: '#ffffff';
     $msg      = trim( (string) ( $d['headline'] ?? '' ) ) ?: trim( (string) ( $d['text'] ?? '' ) );
@@ -192,6 +198,13 @@ function bschi_banner_countdown( ?string $iso ): string {
  * Sale-Banner-HTML aus Hub-Daten bauen (modernes Hero-Design).
  */
 function bschi_sale_render_banner( array $d ): string {
+    // Zentrale Render-Ausgabe vom Office Hub (Generalvorlage + Kampagnen-Feintuning) bevorzugen.
+    // Fällt auf die PHP-Variante zurück, falls der Hub (noch) kein render-Feld liefert.
+    $r = isset( $d['render'] ) && is_array( $d['render'] ) ? $d['render'] : null;
+    if ( $r && ! empty( $r['html'] ) ) {
+        return ( $r['css'] ?? '' ) . $r['html'] . ( $r['js'] ?? '' );
+    }
+
     $bg       = $d['bg_color'] ?: '#4b5a42';
     $fg       = $d['text_color'] ?: '#ffffff';
     $headline = trim( (string) ( $d['headline'] ?? '' ) );
