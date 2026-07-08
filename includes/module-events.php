@@ -96,6 +96,7 @@ add_shortcode( 'bsc_hub_event', function ( $atts ): string {
     $url    = '/api/v1/shop/events/upcoming?limit=' . $limit . ( $lead > 0 ? '&within_days=' . $lead : '' );
     $data   = bschi_hub_get( $url, BSCHI_EVENT_CACHE_TTL );
     $events = $data['events'] ?? null;
+    bschi_event_set_hub_css( $data['design_css'] ?? '' );
     if ( empty( $events ) ) {
         return '';
     }
@@ -123,6 +124,7 @@ add_shortcode( 'bsc_hub_event_today', function ( $atts ): string {
     $wd         = $hours > 0 ? max( 1, (int) ceil( $hours / 24 ) ) : 1;
     $data   = bschi_hub_get( '/api/v1/shop/events/upcoming?limit=20&within_days=' . $wd . '&since_midnight=1', 180 );
     $events = $data['events'] ?? [];
+    bschi_event_set_hub_css( $data['design_css'] ?? '' );
     $list   = [];
     foreach ( $events as $e ) {
         if ( ( $e['kind'] ?? '' ) !== 'termin' || empty( $e['scheduled_at'] ) ) {
@@ -475,12 +477,26 @@ function bschi_event_modal_once(): string {
 /**
  * Einmalig das Karten-CSS ausgeben.
  */
+/**
+ * Vom Office Hub geliefertes, aus der Generalvorlage generiertes Event-CSS merken
+ * (ersetzt das hartkodierte CSS unten; leer = Fallback bleibt aktiv).
+ */
+function bschi_event_set_hub_css( string $css ): void {
+    if ( $css !== '' ) {
+        $GLOBALS['bschi_event_hub_css'] = $css;
+    }
+}
+
 function bschi_event_styles(): string {
     static $done = false;
     if ( $done ) {
         return '';
     }
     $done = true;
+    $hub = $GLOBALS['bschi_event_hub_css'] ?? '';
+    if ( $hub !== '' ) {
+        return $hub;   // zentrale Generalvorlage aus dem Hub
+    }
     return '<style id="bschi-event-css">
     /* Kacheln: zentriert; ab >3 horizontal scrollbar (Slider), NIE umbrechen */
     .bschi-ev{display:flex;flex-wrap:nowrap;gap:18px;margin:0 0 24px;font-family:inherit;overflow-x:auto;padding:4px 2px 10px;justify-content:safe center;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
