@@ -817,6 +817,15 @@ function bschi_render_shortcode_overview(): void {
             'feature' => 'event_banner',
         ],
         [
+            'code'    => '[bsc_hub_fuehrungen]',
+            'desc'    => 'Führungs-ANGEBOT als hochwertige Karten-Galerie: die buchbaren Pakete aus dem Office Hub (Führungen → Pakete), nicht die datierten Termine. Es erscheinen nur Pakete mit aktiviertem Schalter „Im Führungs-Angebot zeigen"; ohne freigegebene Pakete rendert der Shortcode nichts (Cache 10 Min.).',
+            'attrs'   => [
+                [ 'cta_url', '/kontakt', 'Ziel-Link des Anfrage-Buttons.' ],
+                [ 'cta_text', 'Jetzt anfragen', 'Button-Beschriftung.' ],
+            ],
+            'feature' => null,
+        ],
+        [
             'code'    => '[bsc_hub_social]',
             'desc'    => 'Social-Media-Feed als eingebettete Karten (importierter Instagram/Facebook-Feed + eigene veröffentlichte Posts). Klick öffnet den Original-Post.',
             'attrs'   => [
