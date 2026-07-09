@@ -90,7 +90,7 @@ function bschi_render_admin_page(): void {
             'feature_chat'          => isset( $_POST['feature_chat'] ),
 
             // Stellenanzeigen [bsc_hub_jobs]
-            'jobs_layout'       => in_array( $_POST['jobs_layout'] ?? '', [ 'list', 'grid', 'compact' ], true ) ? $_POST['jobs_layout'] : 'compact',
+            'jobs_layout'       => in_array( $_POST['jobs_layout'] ?? '', [ 'list', 'grid', 'compact', 'slider' ], true ) ? $_POST['jobs_layout'] : 'compact',
             'jobs_columns'      => max( 2, min( 4, (int) ( $_POST['jobs_columns'] ?? 3 ) ) ),
             'jobs_apply_url'    => esc_url_raw( trim( $_POST['jobs_apply_url'] ?? '' ) ),
             'jobs_apply_label'  => sanitize_text_field( trim( $_POST['jobs_apply_label'] ?? '' ) ) ?: 'Jetzt bewerben',
@@ -311,6 +311,7 @@ function bschi_render_admin_page(): void {
                                     <option value="list" <?= selected( ( $s['jobs_layout'] ?? 'compact' ), 'list', false ); ?>>Liste (untereinander) – Standard</option>
                                     <option value="grid" <?= selected( ( $s['jobs_layout'] ?? 'compact' ), 'grid', false ); ?>>Kacheln – vollständig</option>
                                     <option value="compact" <?= selected( ( $s['jobs_layout'] ?? 'compact' ), 'compact', false ); ?>>Kacheln – kompakt (mit „Mehr erfahren")</option>
+                                    <option value="slider" <?= selected( ( $s['jobs_layout'] ?? 'compact' ), 'slider', false ); ?>>Slider / Karussell (horizontal wischbar)</option>
                                 </select>
                             </label>
                             &nbsp;&nbsp;

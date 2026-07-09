@@ -66,6 +66,13 @@ function bschi_jobs_styles(): string {
     .bschi-job__apply{display:inline-block;margin-top:1em;background:#4b5a42;color:#fff!important;text-decoration:none;font-weight:700;letter-spacing:.2px;padding:11px 22px;border-radius:10px;line-height:1;transition:background .15s}
     .bschi-job__apply:hover{background:#3c4835;color:#fff!important}
     .bschi-jobs--grid .bschi-job__foot{margin-top:auto;display:flex;flex-direction:column;align-items:flex-start}
+    /* Slider / Karussell: horizontal wischbare Karten (Scroll-Snap, ohne JS) */
+    .bschi-jobs--slider{max-width:1180px}
+    .bschi-jobs--slider .bschi-jobs__list{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 2px 14px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+    .bschi-jobs--slider .bschi-jobs__list::-webkit-scrollbar{height:8px}
+    .bschi-jobs--slider .bschi-jobs__list::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18);border-radius:4px}
+    .bschi-jobs--slider .bschi-job{flex:0 0 clamp(280px,82vw,344px);scroll-snap-align:start;margin:0;display:flex;flex-direction:column}
+    .bschi-jobs--slider .bschi-job__foot{margin-top:auto;display:flex;flex-direction:column;align-items:flex-start}
     </style>';
 }
 
@@ -79,17 +86,18 @@ add_shortcode( 'bsc_hub_jobs', function ( $atts ): string {
     // – aus Plugin-Settings, pro Shortcode übersteuerbar.
     $s   = bschi_get_settings();
     $a   = shortcode_atts( [ 'layout' => '', 'columns' => '' ], is_array( $atts ) ? $atts : [] );
-    $layout  = in_array( $a['layout'], [ 'list', 'grid', 'compact' ], true ) ? $a['layout'] : ( $s['jobs_layout'] ?? 'compact' );
+    $layout  = in_array( $a['layout'], [ 'list', 'grid', 'compact', 'slider' ], true ) ? $a['layout'] : ( $s['jobs_layout'] ?? 'compact' );
     $cols    = (int) ( $a['columns'] !== '' ? $a['columns'] : ( $s['jobs_columns'] ?? 3 ) );
     $cols    = max( 2, min( 4, $cols ) );
     $grid    = in_array( $layout, [ 'grid', 'compact' ], true );
-    $compact = ( $layout === 'compact' );
+    $slider  = ( $layout === 'slider' );
+    $compact = ( $layout === 'compact' || $slider );   // Slider nutzt kompakte, gleich hohe Karten
     $apply_url   = trim( (string) ( $s['jobs_apply_url'] ?? '' ) );
     $apply_label = trim( (string) ( $s['jobs_apply_label'] ?? '' ) ) ?: 'Jetzt bewerben';
 
     ob_start();
     echo bschi_jobs_styles();
-    $wrap_cls = 'bschi-jobs' . ( $grid ? ' bschi-jobs--grid' : '' ) . ( $compact ? ' bschi-jobs--compact' : '' );
+    $wrap_cls = 'bschi-jobs' . ( $grid ? ' bschi-jobs--grid' : '' ) . ( $slider ? ' bschi-jobs--slider' : '' ) . ( $compact ? ' bschi-jobs--compact' : '' );
     ?>
     <div class="<?php echo esc_attr( $wrap_cls ); ?>"<?php echo $grid ? ' style="--bschi-cols:' . (int) $cols . '"' : ''; ?>>
         <?php if ( ! empty( $meta['jobs_page_intro'] ) ) : ?>
