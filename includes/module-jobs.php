@@ -156,3 +156,142 @@ add_shortcode( 'bsc_hub_jobs', function ( $atts ): string {
     <?php
     return (string) ob_get_clean();
 } );
+
+
+/**
+ * Direktbewerbungs-Formular [bsc_hub_bewerbung] – legt über den Office Hub eine Bewerbung an
+ * (source „website"), optional mit Lebenslauf-Upload. Läuft server-seitig über admin-ajax
+ * (Hub-Secret bleibt im Server, nicht im Browser). Honeypot als Spam-Schutz.
+ * Attribute: job_id (Stelle vorauswählen), title.
+ */
+add_action( 'wp_ajax_bschi_job_apply', 'bschi_job_apply_ajax' );
+add_action( 'wp_ajax_nopriv_bschi_job_apply', 'bschi_job_apply_ajax' );
+function bschi_job_apply_ajax() {
+    $name = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+    if ( $name === '' ) {
+        wp_send_json_error( [ 'message' => 'Bitte einen Namen angeben.' ], 400 );
+    }
+    $endpoint = bschi_hub_url( '/api/v1/shop/jobs/apply' );
+    if ( ! $endpoint ) {
+        wp_send_json_error( [ 'message' => 'Bewerbung derzeit nicht möglich.' ], 500 );
+    }
+    $cv_b64 = $cv_name = $cv_mime = null;
+    if ( ! empty( $_FILES['cv']['tmp_name'] ) && is_uploaded_file( $_FILES['cv']['tmp_name'] ) ) {
+        $sz   = (int) ( $_FILES['cv']['size'] ?? 0 );
+        $mime = (string) ( $_FILES['cv']['type'] ?? '' );
+        $allowed = [ 'application/pdf', 'image/jpeg', 'image/png', 'application/msword',
+                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ];
+        if ( $sz > 0 && $sz <= 8 * 1024 * 1024 && in_array( $mime, $allowed, true ) ) {
+            $bytes = file_get_contents( $_FILES['cv']['tmp_name'] );
+            if ( $bytes !== false ) {
+                $cv_b64  = base64_encode( $bytes );
+                $cv_name = sanitize_file_name( (string) ( $_FILES['cv']['name'] ?? 'lebenslauf' ) );
+                $cv_mime = $mime;
+            }
+        } elseif ( $sz > 8 * 1024 * 1024 ) {
+            wp_send_json_error( [ 'message' => 'Der Lebenslauf ist zu groß (max. 8 MB).' ], 400 );
+        }
+    }
+    $payload = [
+        'job_id'  => ( (string) ( $_POST['job_id'] ?? '' ) !== '' ) ? (int) $_POST['job_id'] : null,
+        'name'    => $name,
+        'email'   => sanitize_email( wp_unslash( $_POST['email'] ?? '' ) ),
+        'phone'   => sanitize_text_field( wp_unslash( $_POST['phone'] ?? '' ) ),
+        'message' => sanitize_textarea_field( wp_unslash( $_POST['message'] ?? '' ) ),
+        'cv_b64'  => $cv_b64, 'cv_name' => $cv_name, 'cv_mime' => $cv_mime,
+        'hp'      => sanitize_text_field( wp_unslash( $_POST['hp'] ?? '' ) ),
+    ];
+    $response = wp_remote_post( $endpoint, [
+        'timeout' => 25, 'headers' => bschi_hub_headers(), 'body' => wp_json_encode( $payload ),
+    ] );
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( [ 'message' => 'Übermittlung gerade nicht möglich. Bitte später erneut versuchen.' ], 502 );
+    }
+    $code = wp_remote_retrieve_response_code( $response );
+    if ( $code >= 400 ) {
+        $b = json_decode( wp_remote_retrieve_body( $response ), true );
+        $msg = ( is_array( $b ) && ! empty( $b['detail'] ) && is_string( $b['detail'] ) ) ? $b['detail'] : 'Bewerbung fehlgeschlagen.';
+        wp_send_json_error( [ 'message' => $msg ], $code );
+    }
+    wp_send_json_success( [ 'ok' => true ] );
+}
+
+add_shortcode( 'bsc_hub_bewerbung', function ( $atts ): string {
+    $a = shortcode_atts( [ 'job_id' => '', 'title' => 'Jetzt bewerben' ], is_array( $atts ) ? $atts : [] );
+    $data = bschi_hub_get( '/api/v1/shop/jobs', 300 );
+    $jobs = ( is_array( $data ) && isset( $data['jobs'] ) ) ? $data['jobs'] : [];
+    $ajax = esc_url( admin_url( 'admin-ajax.php' ) );
+    $uid  = 'bschiapp_' . wp_rand( 1000, 9999 );
+    $presel = (int) $a['job_id'];
+    ob_start();
+    ?>
+    <style>
+    .bschi-appf{max-width:640px;margin:0 auto;font-family:inherit}
+    .bschi-appf__row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+    .bschi-appf__row label{font-weight:700;font-size:.92rem;color:#3a3228}
+    .bschi-appf input,.bschi-appf select,.bschi-appf textarea{width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #d9d0be;border-radius:10px;font:inherit;font-size:1rem;background:#fff;color:#2c2a25}
+    .bschi-appf input:focus,.bschi-appf select:focus,.bschi-appf textarea:focus{outline:none;border-color:#4b5a42;box-shadow:0 0 0 3px rgba(75,90,66,.14)}
+    .bschi-appf textarea{min-height:110px;resize:vertical}
+    .bschi-appf__hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;overflow:hidden}
+    .bschi-appf__file{font-size:.9rem}
+    .bschi-appf__hint{font-size:.8rem;color:#7a7060;margin-top:3px}
+    .bschi-appf__btn{background:#4b5a42;color:#fff;border:0;font-weight:700;letter-spacing:.2px;padding:13px 26px;border-radius:11px;font-size:1rem;cursor:pointer;transition:background .15s}
+    .bschi-appf__btn:hover{background:#3c4835}.bschi-appf__btn:disabled{opacity:.6;cursor:default}
+    .bschi-appf__msg{margin-top:12px;padding:12px 14px;border-radius:10px;font-size:.95rem;display:none}
+    .bschi-appf__msg--ok{display:block;background:#eaf3e6;border:1px solid #bcd8b0;color:#33562a}
+    .bschi-appf__msg--err{display:block;background:#f8e8e5;border:1px solid #e2b6ad;color:#8a3226}
+    </style>
+    <form id="<?php echo esc_attr( $uid ); ?>" class="bschi-appf" enctype="multipart/form-data" novalidate>
+        <?php if ( ! empty( $jobs ) ) : ?>
+        <div class="bschi-appf__row">
+            <label for="<?php echo esc_attr( $uid ); ?>_job">Stelle</label>
+            <select id="<?php echo esc_attr( $uid ); ?>_job" name="job_id">
+                <option value="">Initiativbewerbung</option>
+                <?php foreach ( $jobs as $j ) : ?>
+                    <option value="<?php echo (int) $j['id']; ?>" <?php selected( $presel, (int) $j['id'] ); ?>><?php echo esc_html( $j['title'] ); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
+        <div class="bschi-appf__row"><label>Name *</label><input type="text" name="name" required autocomplete="name"></div>
+        <div class="bschi-appf__row"><label>E-Mail *</label><input type="email" name="email" required autocomplete="email"></div>
+        <div class="bschi-appf__row"><label>Telefon</label><input type="tel" name="phone" autocomplete="tel"></div>
+        <div class="bschi-appf__row"><label>Nachricht / Anschreiben</label><textarea name="message" placeholder="Erzähl uns kurz, warum du zu uns passt."></textarea></div>
+        <div class="bschi-appf__row"><label>Lebenslauf (optional)</label>
+            <input class="bschi-appf__file" type="file" name="cv" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <div class="bschi-appf__hint">PDF, Word oder Bild, max. 8 MB.</div></div>
+        <div class="bschi-appf__hp"><label>Bitte frei lassen<input type="text" name="hp" tabindex="-1" autocomplete="off"></label></div>
+        <button type="submit" class="bschi-appf__btn"><?php echo esc_html( $a['title'] ); ?></button>
+        <div class="bschi-appf__msg" id="<?php echo esc_attr( $uid ); ?>_msg"></div>
+    </form>
+    <script>
+    (function(){
+      var f=document.getElementById('<?php echo esc_js( $uid ); ?>');
+      if(!f||f.dataset.bound)return; f.dataset.bound='1';
+      var msg=document.getElementById('<?php echo esc_js( $uid ); ?>_msg');
+      var AJAX='<?php echo $ajax; ?>';
+      f.addEventListener('submit',function(e){
+        e.preventDefault();
+        var btn=f.querySelector('.bschi-appf__btn');
+        msg.className='bschi-appf__msg';
+        var fd=new FormData(f); fd.append('action','bschi_job_apply');
+        btn.disabled=true; var ot=btn.textContent; btn.textContent='Wird gesendet …';
+        fetch(AJAX,{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+          if(d&&d.success){
+            f.reset();
+            msg.className='bschi-appf__msg bschi-appf__msg--ok';
+            msg.textContent='Vielen Dank! Deine Bewerbung ist bei uns eingegangen – wir melden uns.';
+          }else{
+            msg.className='bschi-appf__msg bschi-appf__msg--err';
+            msg.textContent=(d&&d.data&&d.data.message)?d.data.message:'Es ist ein Fehler aufgetreten. Bitte versuche es erneut.';
+          }
+        }).catch(function(){
+          msg.className='bschi-appf__msg bschi-appf__msg--err';
+          msg.textContent='Verbindung fehlgeschlagen. Bitte später erneut versuchen.';
+        }).finally(function(){ btn.disabled=false; btn.textContent=ot; });
+      });
+    })();
+    </script>
+    <?php
+    return (string) ob_get_clean();
+} );
