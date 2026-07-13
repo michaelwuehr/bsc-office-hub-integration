@@ -123,12 +123,15 @@
     }
     track('pageview');
     if (cfg.hasCart) pushCtx();
-    // WooCommerce-AJAX "in den Warenkorb"
+    // WooCommerce-AJAX "in den Warenkorb" / "aus dem Warenkorb entfernt"
     if (window.jQuery) {
       window.jQuery(document.body).on('added_to_cart', function (ev, frags, hash, btn) {
         var sku = btn && btn.data ? (btn.data('product_sku') || String(btn.data('product_id') || '')) : '';
         track('add_to_cart', { sku: sku || null });
         pushCtx();
+      });
+      window.jQuery(document.body).on('removed_from_cart', function () {
+        track('remove_from_cart');
       });
     }
     // Klassisches Produktformular (Einzelprodukt ohne AJAX)

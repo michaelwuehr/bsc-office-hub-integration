@@ -92,6 +92,40 @@ function bschi_trk_ctx_handler(): void {
     wp_send_json_success();
 }
 
+// ─── Kunden-Login → Identity-Verknüpfung (Journey greift ab Anmeldung) ───────
+
+add_action( 'wp_login', function ( $user_login, $user ) {
+    if ( ! bschi_feature_enabled( 'tracking' ) || ! bschi_tracking_hub_url() ) {
+        return;
+    }
+    // Nur Kunden verknüpfen – Redakteure/Shop-Manager/Admins nicht tracken
+    if ( user_can( $user, 'edit_posts' ) || user_can( $user, 'edit_shop_orders' ) ) {
+        return;
+    }
+    $ctx = ( function_exists( 'WC' ) && WC()->session ) ? WC()->session->get( 'bschi_trk' ) : null;
+    if ( ! is_array( $ctx ) || empty( $ctx['v'] ) ) {
+        return; // kein Consent-Kontext → keine Verknüpfung (DSGVO)
+    }
+    $email = strtolower( trim( $user->user_email ) );
+    if ( ! $email ) {
+        return;
+    }
+    $s = bschi_get_settings();
+    wp_remote_post( bschi_tracking_hub_url() . '/api/v1/track/identify', [
+        'timeout'  => 5,
+        'blocking' => false,
+        'headers'  => [
+            'Content-Type'  => 'application/json',
+            'X-BSMH-Secret' => $s['tracking_secret'] ?? '',
+        ],
+        'body'     => wp_json_encode( [
+            'visitor_id'   => $ctx['v'],
+            'email_sha256' => hash( 'sha256', $email ),
+            'path'         => '/login',
+        ] ),
+    ] );
+}, 20, 2 );
+
 // ─── Bestell-Push an den Marketing Hub ───────────────────────────────────────
 
 // Klassischer Checkout + Store-API (Block-Checkout) – Muster wie module-double-orders
