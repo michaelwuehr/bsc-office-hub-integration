@@ -4,7 +4,7 @@
  * Description:  Verbindet WooCommerce mit dem BSC Office Hub: Shop-Gesundheits-Monitoring,
  *               Doppelbestellungs-Erkennung, Sale-Banner-Shortcode, Kundendokumente,
  *               Preislisten und Woidsiederei-Chat. Nachfolger des BSC WC Health Monitors.
- * Version:      3.29.0
+ * Version:      3.30.0
  * Author:       Michael Wühr
  * License:      GPL-2.0-or-later
  * Requires at least: 6.0
@@ -18,9 +18,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-define( 'BSCHI_VERSION',          '3.29.0' );
+define( 'BSCHI_VERSION',          '3.30.0' );
 define( 'BSCHI_PLUGIN_FILE',      __FILE__ );
 define( 'BSCHI_PLUGIN_DIR',       plugin_dir_path( __FILE__ ) );
+define( 'BSCHI_PLUGIN_URL',       plugin_dir_url( __FILE__ ) );
 define( 'BSCHI_SLUG',             'bsc-office-hub-integration' );
 define( 'BSCHI_OPTION_SETTINGS',  'bschi_settings' );
 define( 'BSCHI_CRON_HOOK',        'bschi_scheduled_check' );
@@ -82,6 +83,11 @@ function bschi_default_settings(): array {
         'feature_customer_docs' => false,
         'feature_pricelist'     => false,
         'feature_chat'          => false,
+        'feature_tracking'      => false,   // First-Party-Tracking – erst nach DSE-Update aktivieren!
+
+        // Tracking (Marketing Hub, Kampagnen-Analytics)
+        'tracking_hub_url'      => 'https://marketing.bsc-theresienthal.de',
+        'tracking_secret'       => '',
 
         // Social-Media-Feed: anzuzeigende Plattformen (kommagetrennt)
         'social_platforms'      => 'instagram,facebook',
@@ -185,6 +191,7 @@ require_once BSCHI_PLUGIN_DIR . 'includes/module-pricelist.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-chat.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-fuehrung.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-jobs.php';
+require_once BSCHI_PLUGIN_DIR . 'includes/module-tracking.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/admin-page.php';
 
 // ─── Cron-Lauf: alle aktiven Modul-Checks ─────────────────────────────────────

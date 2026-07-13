@@ -89,6 +89,11 @@ function bschi_render_admin_page(): void {
             'feature_pricelist'     => isset( $_POST['feature_pricelist'] ),
             'feature_chat'          => isset( $_POST['feature_chat'] ),
 
+            // First-Party-Tracking (Marketing Hub)
+            'feature_tracking'      => isset( $_POST['feature_tracking'] ),
+            'tracking_hub_url'      => esc_url_raw( trim( $_POST['tracking_hub_url'] ?? '' ) ) ?: 'https://marketing.bsc-theresienthal.de',
+            'tracking_secret'       => sanitize_text_field( trim( $_POST['tracking_secret'] ?? '' ) ),
+
             // Stellenanzeigen [bsc_hub_jobs]
             'jobs_layout'       => in_array( $_POST['jobs_layout'] ?? '', [ 'list', 'grid', 'compact', 'slider' ], true ) ? $_POST['jobs_layout'] : 'compact',
             'jobs_columns'      => max( 2, min( 4, (int) ( $_POST['jobs_columns'] ?? 3 ) ) ),
@@ -286,6 +291,29 @@ function bschi_render_admin_page(): void {
                             Preisliste für Händler/Hotel-Kunden (My-Account: "Preisliste")</label><br>
                         <label><input type="checkbox" name="feature_chat" value="1" <?= checked( $s['feature_chat'] ?? false, true, false ); ?>>
                             Woidsiederei-Chat (Floating-Widget für eingeloggte Kunden)</label>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Tracking (Marketing Hub)</th>
+                    <td>
+                        <label><input type="checkbox" name="feature_tracking" value="1" <?= checked( $s['feature_tracking'] ?? false, true, false ); ?>>
+                            First-Party-Tracking aktivieren (Kampagnen-Analytics)</label>
+                        <p class="description">
+                            Startet erst nach Consent „Statistik" (Complianz), keine Cookies, Daten gehen
+                            ausschließlich an den eigenen Marketing Hub. <strong>Vor der Aktivierung die
+                            Datenschutzerklärung ergänzen!</strong> Der Bestell-Push (E-Mail nur als Hash)
+                            gehört zum Modul und läuft bei Besuchern ohne Consent ohne Besucher-ID.
+                        </p>
+                        <p>
+                            <label>Marketing-Hub-URL<br>
+                                <input type="url" name="tracking_hub_url" class="regular-text"
+                                    value="<?= esc_attr( $s['tracking_hub_url'] ?? 'https://marketing.bsc-theresienthal.de' ); ?>"></label>
+                        </p>
+                        <p>
+                            <label>Shop-Secret (X-BSMH-Secret, im Marketing Hub unter Einstellungen → Web-Tracking erzeugen)<br>
+                                <input type="password" name="tracking_secret" class="regular-text"
+                                    value="<?= esc_attr( $s['tracking_secret'] ?? '' ); ?>"></label>
+                        </p>
                     </td>
                 </tr>
                 <tr>
