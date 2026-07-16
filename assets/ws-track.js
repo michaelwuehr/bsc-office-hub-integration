@@ -143,10 +143,28 @@
         flush();
       }
     }, true);
+    // Scrolltiefe: maximale Tiefe in % je Pageview, einmalig beim Verlassen gesendet
+    var maxScroll = 0, scrollSent = false, scrollTick = false;
+    function measureScroll() {
+      scrollTick = false;
+      var doc = document.documentElement;
+      var total = (doc.scrollHeight || 0) - window.innerHeight;
+      if (total < 200) return; // kurze Seiten nicht werten
+      var d = Math.min(100, Math.round((window.scrollY || doc.scrollTop || 0) / total * 100));
+      if (d > maxScroll) maxScroll = d;
+    }
+    window.addEventListener('scroll', function () {
+      if (!scrollTick) { scrollTick = true; requestAnimationFrame(measureScroll); }
+    }, { passive: true });
+    function sendScroll() {
+      if (scrollSent || !started || maxScroll <= 0) return;
+      scrollSent = true;
+      track('scroll', { val: maxScroll });
+    }
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') flush();
+      if (document.visibilityState === 'hidden') { sendScroll(); flush(); }
     });
-    window.addEventListener('pagehide', flush);
+    window.addEventListener('pagehide', function () { sendScroll(); flush(); });
   }
 
   function revoke() {
