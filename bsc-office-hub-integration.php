@@ -4,7 +4,7 @@
  * Description:  Verbindet WooCommerce mit dem BSC Office Hub: Shop-Gesundheits-Monitoring,
  *               Doppelbestellungs-Erkennung, Sale-Banner-Shortcode, Kundendokumente,
  *               Preislisten und Woidsiederei-Chat. Nachfolger des BSC WC Health Monitors.
- * Version:      3.33.1
+ * Version:      3.34.0
  * Author:       Michael Wühr
  * License:      GPL-2.0-or-later
  * Requires at least: 6.0
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-define( 'BSCHI_VERSION',          '3.33.1' );
+define( 'BSCHI_VERSION',          '3.34.0' );
 define( 'BSCHI_PLUGIN_FILE',      __FILE__ );
 define( 'BSCHI_PLUGIN_DIR',       plugin_dir_path( __FILE__ ) );
 define( 'BSCHI_PLUGIN_URL',       plugin_dir_url( __FILE__ ) );
@@ -80,6 +80,7 @@ function bschi_default_settings(): array {
         'feature_aktion_banner' => false,
         'feature_event_banner'  => false,
         'feature_offen_banner'  => false,
+        'feature_exit_popup'    => false,
         'feature_social_feed'   => false,
         'feature_customer_docs' => false,
         'feature_pricelist'     => false,
@@ -187,6 +188,7 @@ require_once BSCHI_PLUGIN_DIR . 'includes/module-double-orders.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-sale-banner.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-events.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-opening-hours.php';
+require_once BSCHI_PLUGIN_DIR . 'includes/module-exit-popup.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-social.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-customer-docs.php';
 require_once BSCHI_PLUGIN_DIR . 'includes/module-pricelist.php';
