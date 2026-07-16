@@ -80,6 +80,7 @@ function bschi_render_admin_page(): void {
             'feature_sale_banner'   => isset( $_POST['feature_sale_banner'] ),
             'feature_aktion_banner' => isset( $_POST['feature_aktion_banner'] ),
             'feature_event_banner'  => isset( $_POST['feature_event_banner'] ),
+            'feature_offen_banner'  => isset( $_POST['feature_offen_banner'] ),
             'feature_social_feed'   => isset( $_POST['feature_social_feed'] ),
             'social_platforms'      => implode( ',', array_values( array_intersect(
                 [ 'instagram', 'facebook', 'tiktok', 'linkedin', 'pinterest' ],
@@ -283,6 +284,8 @@ function bschi_render_admin_page(): void {
                             Aktions-Banner-Shortcode <code>[bsc_hub_aktion]</code> (Gutschein/Promo)</label><br>
                         <label><input type="checkbox" name="feature_event_banner" value="1" <?= checked( $s['feature_event_banner'] ?? false, true, false ); ?>>
                             Veranstaltungs-Banner <code>[bsc_hub_event]</code> + Heute-Banner <code>[bsc_hub_event_today]</code> (Führungen/Events)</label><br>
+                        <label><input type="checkbox" name="feature_offen_banner" value="1" <?= checked( $s['feature_offen_banner'] ?? false, true, false ); ?>>
+                            Öffnungszeiten-Banner <code>[bsc_offen_banner]</code></label><br>
                         <label><input type="checkbox" name="feature_social_feed" value="1" <?= checked( $s['feature_social_feed'] ?? false, true, false ); ?>>
                             Social-Media-Feed <code>[bsc_hub_social]</code></label><br>
                         <label><input type="checkbox" name="feature_customer_docs" value="1" <?= checked( $s['feature_customer_docs'] ?? false, true, false ); ?>>
