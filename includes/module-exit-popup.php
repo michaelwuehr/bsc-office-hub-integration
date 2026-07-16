@@ -20,7 +20,7 @@ add_action( 'wp_footer', function (): void {
 	}
 	$s   = bschi_get_settings();
 	$hub = rtrim( $s['tracking_hub_url'] ?? '', '/' );
-	if ( $hub === '' || is_cart() || is_checkout() ) {
+	if ( $hub === '' || is_checkout() ) {
 		return;
 	}
 	// Feed serverseitig holen (Secret bleibt auf dem Server), 10 min Cache
@@ -37,7 +37,16 @@ add_action( 'wp_footer', function (): void {
 	if ( empty( $feed['aktiv'] ) || empty( $feed['regeln'] ) ) {
 		return;
 	}
-	$json = wp_json_encode( [ 'regeln' => $feed['regeln'], 'wetter' => $feed['wetter'] ?? [] ] );
+	$cart_total = 0.0;
+	if ( function_exists( 'WC' ) && WC()->cart ) {
+		$cart_total = (float) WC()->cart->get_cart_contents_total() + (float) WC()->cart->get_cart_contents_tax();
+	}
+	$json = wp_json_encode( [
+		'regeln'    => $feed['regeln'],
+		'wetter'    => $feed['wetter'] ?? [],
+		'cartTotal' => round( $cart_total, 2 ),
+		'isProduct' => function_exists( 'is_product' ) && is_product(),
+	] );
 	?>
 	<div id="bschi-ep" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(26,26,24,.55);align-items:center;justify-content:center;padding:16px">
 	  <div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:26px 24px;box-shadow:0 18px 60px rgba(0,0,0,.35);position:relative;font-family:inherit">
@@ -72,6 +81,9 @@ add_action( 'wp_footer', function (): void {
 	      case 'utm': return (SS.getItem('bschi_utm') || '') === String(r.param || '').toLowerCase();
 	      case 'verweildauer': return minsOnSite() >= (parseFloat(r.param) || 8);
 	      case 'wetter_regen': return !!(CFG.wetter && CFG.wetter.regen);
+	      case 'warenkorb_min': return CFG.cartTotal > 0 && CFG.cartTotal < (parseFloat(r.param) || 45);
+	      case 'produkt_zeit': return CFG.isProduct && minsOnSite() >= (parseFloat(r.param) || 2);
+	      case 'wiederkehrend': return !erst;
 	      case 'zeit': {
 	        var m = String(r.param || '').toLowerCase().match(/^([a-z,]+)\s+(\d{1,2})-(\d{1,2})$/);
 	        if (!m) return false;
@@ -85,15 +97,43 @@ add_action( 'wp_footer', function (): void {
 	  function pick(){
 	    return CFG.regeln.filter(ruleMatch).sort(function(a, b){ return (a.prioritaet || 10) - (b.prioritaet || 10); })[0] || null;
 	  }
-	  function show(){
+	  function fillText(r, s){
+	    var schwelle = parseFloat(r.param) || 0;
+	    var rest = Math.max(0, schwelle - (CFG.cartTotal || 0));
+	    return String(s || '').replace('{rest}', rest.toFixed(2).replace('.', ',') + ' €')
+	                          .replace('{schwelle}', schwelle.toFixed(2).replace('.', ',') + ' €');
+	  }
+	  function showSlideIn(r){
+	    if (document.getElementById('bschi-si')) return;
+	    try { if (LS.getItem('bschi_si_' + r.id) && Date.now() - parseInt(LS.getItem('bschi_si_' + r.id), 10) < 24*3600*1000) return;
+	          LS.setItem('bschi_si_' + r.id, String(Date.now())); } catch (e) {}
+	    var d = document.createElement('div'); d.id = 'bschi-si';
+	    d.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99998;background:#fff;border:1px solid #d8d0c4;border-radius:14px;box-shadow:0 10px 36px rgba(0,0,0,.22);padding:16px 18px;max-width:320px;font-size:13.5px;line-height:1.5';
+	    d.innerHTML = '<button type="button" style="position:absolute;top:6px;right:9px;border:0;background:none;font-size:16px;cursor:pointer;color:#999">✕</button>'
+	      + '<b>' + fillText(r, r.headline || '') + '</b><div style="margin-top:4px;color:#444">' + fillText(r, r.text || '') + '</div>'
+	      + (r.gutschein_code && r.email_gate === false ? '<div style="margin-top:8px">Code: <b style="font-family:monospace">' + r.gutschein_code + '</b></div>' : '')
+	      + (r.email_gate !== false ? '<button type="button" id="bschi-si-cta" style="margin-top:10px;padding:9px 14px;border:0;border-radius:8px;background:#4b5a42;color:#fff;font-weight:700;cursor:pointer">' + (r.gutschein_text ? r.gutschein_text + ' sichern' : 'Mehr erfahren') + '</button>' : '');
+	    document.body.appendChild(d);
+	    d.querySelector('button').onclick = function(){ d.remove(); };
+	    var cta = d.querySelector('#bschi-si-cta');
+	    if (cta) cta.onclick = function(){ d.remove(); shown = false; showPopup(r); };
+	  }
+	  function showCartBar(r){
+	    if (document.getElementById('bschi-cb')) return;
+	    var d = document.createElement('div'); d.id = 'bschi-cb';
+	    d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#4b5a42;color:#fff;text-align:center;padding:9px 40px;font-size:13.5px';
+	    d.innerHTML = fillText(r, (r.headline ? r.headline + ' – ' : '') + (r.text || ''))
+	      + '<button type="button" style="position:absolute;right:10px;top:6px;border:0;background:none;color:#fff;font-size:15px;cursor:pointer">✕</button>';
+	    document.body.appendChild(d);
+	    d.querySelector('button').onclick = function(){ d.remove(); try { SS.setItem('bschi_cb_off', '1'); } catch (e) {} };
+	  }
+	  function showPopup(r){
 	    if (shown) return;
-	    var r = pick();
-	    if (!r) return;
 	    shown = true;
 	    try { LS.setItem('bschi_ep_last', String(Date.now())); } catch (e) {}
 	    var ep = document.getElementById('bschi-ep');
-	    document.getElementById('bschi-ep-headline').textContent = r.headline || 'Bevor du gehst …';
-	    document.getElementById('bschi-ep-text').textContent = r.text || '';
+	    document.getElementById('bschi-ep-headline').textContent = fillText(r, r.headline || 'Bevor du gehst …');
+	    document.getElementById('bschi-ep-text').textContent = fillText(r, r.text || '');
 	    document.getElementById('bschi-ep-send').textContent = (r.gutschein_text ? r.gutschein_text + ' sichern' : 'Jetzt anmelden');
 	    ep.style.display = 'flex';
 	    document.getElementById('bschi-ep-close').onclick = function(){ ep.style.display = 'none'; };
@@ -118,6 +158,22 @@ add_action( 'wp_footer', function (): void {
 	      }).catch(function(e){ btn.disabled = false; btn.textContent = 'Erneut versuchen'; });
 	    };
 	  }
+	  function show(){
+	    var r = CFG.regeln.filter(function(x){ return (x.anzeige || 'exit') === 'exit' && ruleMatch(x); })
+	      .sort(function(a, b){ return (a.prioritaet || 10) - (b.prioritaet || 10); })[0];
+	    if (r) showPopup(r);
+	  }
+	  // Passive Anzeigen (Slide-in / Leiste): beim Laden + nach Verweildauer prüfen
+	  function passive(){
+	    CFG.regeln.filter(function(x){ return (x.anzeige || 'exit') !== 'exit' && ruleMatch(x); })
+	      .sort(function(a, b){ return (a.prioritaet || 10) - (b.prioritaet || 10); })
+	      .slice(0, 1).forEach(function(r){
+	        if ((r.anzeige || '') === 'cartbar') { if (!SS.getItem('bschi_cb_off')) showCartBar(r); }
+	        else showSlideIn(r);
+	      });
+	  }
+	  setTimeout(passive, 1500);
+	  setInterval(passive, 30000);
 	  document.addEventListener('mouseout', function(e){
 	    if (!e.toElement && !e.relatedTarget && e.clientY < 10) show();
 	  });
