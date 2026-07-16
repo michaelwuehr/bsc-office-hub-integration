@@ -48,11 +48,14 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 		function pad(n){ return (n < 10 ? '0' : '') + n; }
 		function dstr(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 		function blocksFor(s, d){
-			var ds = dstr(d);
-			if ((data.feiertage || []).indexOf(ds) >= 0) return [];
+			var ds = dstr(d), extra = [];
+			(data.sonderoeffnungen || []).forEach(function(so){
+				if (so.standort === s.id && so.datum === ds) extra.push([so.von, so.bis, so.label || '']);
+			});
 			var ex = (s.ausnahmen || []).filter(function(a){ return a.datum === ds; })[0];
-			if (ex) return ex.zeiten || [];
-			return (s.week || {})[TAGE[d.getDay()]] || [];
+			if (ex) return (ex.zeiten || []).map(function(b){ return [b[0], b[1], ex.grund || '']; }).concat(extra);
+			if ((data.feiertage || []).indexOf(ds) >= 0) return extra; // Feiertag: nur Sonderöffnungen
+			return ((s.week || {})[TAGE[d.getDay()]] || []).concat(extra);
 		}
 		function mins(t){ var p = t.split(':'); return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); }
 		function kurz(t){ return t.replace(/^0/, ''); }
@@ -61,7 +64,7 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 		data.standorte.forEach(function(s){
 			var name = (s.label || '').replace('Laden ', '');
 			blocksFor(s, now).forEach(function(b){
-				if (nowM >= mins(b[0]) && nowM < mins(b[1])) offen.push({ name: name, bis: b[1] });
+				if (nowM >= mins(b[0]) && nowM < mins(b[1])) offen.push({ name: name, bis: b[1], label: b[2] || '' });
 			});
 			// nächste Öffnung in den kommenden 14 Tagen suchen
 			for (var i = 0; i <= 14; i++) {
@@ -69,7 +72,7 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 				var bs = blocksFor(s, d);
 				for (var j = 0; j < bs.length; j++) {
 					if (i === 0 && nowM >= mins(bs[j][0])) continue; // heute schon vorbei/laufend
-					var cand = { tage: i, von: bs[j][0], bis: bs[j][1], name: name, dow: d.getDay() };
+					var cand = { tage: i, von: bs[j][0], bis: bs[j][1], name: name, dow: d.getDay(), label: bs[j][2] || '' };
 					if (!naechste || cand.tage < naechste.tage ||
 						(cand.tage === naechste.tage && mins(cand.von) < mins(naechste.von))) naechste = cand;
 					break;
@@ -80,12 +83,13 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 		var txt, farbe;
 		if (offen.length) {
 			farbe = '#2e9e5b';
-			txt = 'Jetzt geöffnet in ' + offen.map(function(o){ return o.name + ' (bis ' + kurz(o.bis) + ' Uhr)'; }).join(' und ');
+			txt = 'Jetzt geöffnet in ' + offen.map(function(o){ return o.name + (o.label ? ' – ' + o.label : '') + ' (bis ' + kurz(o.bis) + ' Uhr)'; }).join(' und ');
 		} else if (naechste) {
 			farbe = '#c0392b';
 			var wann = naechste.tage === 0 ? 'heute' : (naechste.tage === 1 ? 'morgen' : ('am ' + TAGE_DE[naechste.dow]));
 			txt = (data.standorte.length > 1 ? 'Beide Läden geschlossen – wir öffnen ' : 'Geschlossen – wir öffnen ')
-				+ wann + ' ' + kurz(naechste.von) + '–' + kurz(naechste.bis) + ' Uhr in ' + naechste.name;
+				+ wann + ' ' + kurz(naechste.von) + '–' + kurz(naechste.bis) + ' Uhr in ' + naechste.name
+				+ (naechste.label ? ' (' + naechste.label + ')' : '');
 		} else {
 			farbe = '#c0392b';
 			txt = 'Derzeit geschlossen';
