@@ -105,6 +105,22 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
         <textarea name="bschi_gs_gruss" id="bschi-gs-gruss" maxlength="300" rows="3" placeholder="Dein Grußtext …"
           style="width:100%;margin-top:10px;padding:10px;border:2px solid #ccc;border-radius:10px"></textarea>
 
+        <h3 style="margin:20px 0 8px">5. Zustellung</h3>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label style="cursor:pointer"><input type="radio" name="bschi_gs_zustellung" value="selbst" checked>
+            An mich – ich verschenke den Gutschein selbst (PDF per E-Mail an meine Adresse)</label>
+          <label style="cursor:pointer"><input type="radio" name="bschi_gs_zustellung" value="direkt">
+            Direkt an die/den Beschenkte(n) per E-Mail senden</label>
+          <div id="bschi-gs-direkt" style="display:none;gap:10px;flex-wrap:wrap;padding-left:24px">
+            <input type="email" name="bschi_gs_empf_email" id="bschi-gs-empf-email" maxlength="120" placeholder="E-Mail der/des Beschenkten"
+              style="padding:10px;border:2px solid #ccc;border-radius:10px;min-width:260px">
+            <label style="display:flex;align-items:center;gap:6px">Wunschdatum:
+              <input type="date" name="bschi_gs_wunschdatum" min="<?php echo esc_attr( gmdate( 'Y-m-d' ) ); ?>"
+                style="padding:9px;border:2px solid #ccc;border-radius:10px"></label>
+            <span style="font-size:12px;color:#777;width:100%">Du bekommst in jedem Fall eine Sicherheitskopie an deine E-Mail-Adresse.</span>
+          </div>
+        </div>
+
         <h3 style="margin:20px 0 8px">Vorschau</h3>
         <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;background:#f7f5f1">
           <iframe id="bschi-gs-preview" style="width:100%;height:430px;border:0" title="Gutschein-Vorschau"></iframe>
@@ -190,6 +206,14 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
           renderPreview();
         });
       });
+      document.querySelectorAll('input[name=bschi_gs_zustellung]').forEach(function(r){
+        r.addEventListener('change', function(){
+          var box = document.getElementById('bschi-gs-direkt');
+          var an = document.querySelector('input[name=bschi_gs_zustellung]:checked').value === 'direkt';
+          box.style.display = an ? 'flex' : 'none';
+          document.getElementById('bschi-gs-empf-email').required = an;
+        });
+      });
       document.querySelector('.bschi-gs-typ input').dispatchEvent(new Event('change'));
       renderGallery(); renderPreview();
     })();
@@ -221,6 +245,18 @@ add_action( 'template_redirect', function () {
         'absender'   => sanitize_text_field( wp_unslash( $_POST['bschi_gs_absender'] ?? '' ) ),
         'gruss'      => sanitize_textarea_field( wp_unslash( $_POST['bschi_gs_gruss'] ?? '' ) ),
     ];
+    if ( ( $_POST['bschi_gs_zustellung'] ?? '' ) === 'direkt' ) {
+        $email = sanitize_email( wp_unslash( $_POST['bschi_gs_empf_email'] ?? '' ) );
+        if ( ! is_email( $email ) ) {
+            wc_add_notice( 'Bitte eine gültige E-Mail-Adresse für die Zustellung angeben.', 'error' );
+            return;
+        }
+        $daten['empfaenger_email'] = $email;
+        $wunsch = sanitize_text_field( $_POST['bschi_gs_wunschdatum'] ?? '' );
+        if ( $wunsch && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $wunsch ) && $wunsch >= gmdate( 'Y-m-d' ) ) {
+            $daten['zustell_datum'] = $wunsch;
+        }
+    }
     $pid = bschi_gs_product_id();
     if ( $pid && WC()->cart ) {
         WC()->cart->add_to_cart( $pid, 1, 0, [], [ 'bschi_gutschein' => $daten, 'unique_key' => md5( wp_json_encode( $daten ) . microtime() ) ] );
@@ -245,6 +281,10 @@ add_filter( 'woocommerce_get_item_data', function ( $rows, $item ) {
         $rows[] = [ 'key' => 'Einsatzort', 'value' => $g['typ'] === 'laden' ? 'Laden (Theresienthal & Schweinhütt)' : 'Online-Shop' ];
         if ( ! empty( $g['empfaenger'] ) ) {
             $rows[] = [ 'key' => 'Für', 'value' => esc_html( $g['empfaenger'] ) ];
+        }
+        if ( ! empty( $g['empfaenger_email'] ) ) {
+            $rows[] = [ 'key' => 'Zustellung', 'value' => esc_html( $g['empfaenger_email'] )
+                . ( ! empty( $g['zustell_datum'] ) ? ' am ' . esc_html( implode( '.', array_reverse( explode( '-', $g['zustell_datum'] ) ) ) ) : '' ) ];
         }
     }
     return $rows;
@@ -293,6 +333,8 @@ function bschi_gs_order_paid( $order_id ): void {
             'empfaenger' => $g['empfaenger'] ?? '',
             'absender'   => $g['absender'] ?? '',
             'gruss'      => $g['gruss'] ?? '',
+            'empfaenger_email' => $g['empfaenger_email'] ?? '',
+            'zustell_datum'    => $g['zustell_datum'] ?? '',
         ];
     }
     if ( ! $items ) {
@@ -324,3 +366,108 @@ function bschi_gs_order_paid( $order_id ): void {
         $order->add_order_note( 'Gutschein-Meldung an den Office Hub fehlgeschlagen – wird beim nächsten Statuswechsel erneut versucht.' );
     }
 }
+
+// ─── Restwert-Abfrage: Shortcode [bsc_gutschein_restwert] + REST-Proxy ───────
+
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'bschi/v1', '/gutschein-restwert', [
+        'methods'             => 'POST',
+        'callback'            => 'bschi_gs_restwert',
+        'permission_callback' => '__return_true',   // öffentlich, aber IP-gedrosselt
+    ] );
+} );
+
+function bschi_gs_restwert( WP_REST_Request $request ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return new WP_REST_Response( [ 'ok' => false ], 404 );
+    }
+    // Drossel: max. 10 Abfragen je IP und 10 Minuten (kein Code-Durchprobieren)
+    $ip  = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '' );
+    $key = 'bschi_gsrw_' . md5( $ip );
+    $n   = (int) get_transient( $key );
+    if ( $n >= 10 ) {
+        return new WP_REST_Response( [ 'ok' => false, 'msg' => 'Zu viele Anfragen – bitte später erneut versuchen.' ], 429 );
+    }
+    set_transient( $key, $n + 1, 10 * MINUTE_IN_SECONDS );
+
+    $code = strtoupper( sanitize_text_field( $request->get_param( 'code' ) ?? '' ) );
+    if ( strlen( $code ) < 6 || strlen( $code ) > 40 ) {
+        return new WP_REST_Response( [ 'ok' => false, 'msg' => 'Ungültiger Code.' ], 400 );
+    }
+
+    // 1) Online-Gutschein? WC-Coupon lokal prüfen
+    $cid = wc_get_coupon_id_by_code( strtolower( $code ) );
+    if ( ! $cid ) {
+        $cid = wc_get_coupon_id_by_code( $code );
+    }
+    if ( $cid ) {
+        $coupon    = new WC_Coupon( $cid );
+        $eingeloest = $coupon->get_usage_count() >= max( 1, (int) $coupon->get_usage_limit() );
+        return new WP_REST_Response( [
+            'ok' => true, 'typ' => 'online', 'betrag' => (float) $coupon->get_amount(),
+            'status' => $eingeloest ? 'eingelöst' : 'noch nicht eingelöst',
+        ], 200 );
+    }
+
+    // 2) Laden-Gutschein? Office fragt Tillhub nach dem Restwert
+    $endpoint = bschi_hub_url( '/api/v1/shop/gutschein-restwert' );
+    if ( $endpoint ) {
+        $resp = wp_remote_post( $endpoint, [
+            'timeout' => 10,
+            'headers' => bschi_hub_headers(),
+            'body'    => wp_json_encode( [ 'code' => $code ] ),
+        ] );
+        if ( ! is_wp_error( $resp ) && wp_remote_retrieve_response_code( $resp ) === 200 ) {
+            $d = json_decode( wp_remote_retrieve_body( $resp ), true );
+            if ( ! empty( $d['gefunden'] ) ) {
+                return new WP_REST_Response( [
+                    'ok' => true, 'typ' => 'laden', 'betrag' => (float) ( $d['betrag'] ?? 0 ),
+                    'restwert' => $d['restwert'],
+                ], 200 );
+            }
+        }
+    }
+    return new WP_REST_Response( [ 'ok' => false, 'msg' => 'Gutschein nicht gefunden.' ], 404 );
+}
+
+add_shortcode( 'bsc_gutschein_restwert', function (): string {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return '';
+    }
+    ob_start();
+    ?>
+    <div id="bschi-gsrw" style="max-width:480px">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="bschi-gsrw-code" maxlength="40" placeholder="Gutschein-Code eingeben"
+          style="flex:1;padding:11px;border:2px solid #ccc;border-radius:10px;font-family:monospace">
+        <button type="button" id="bschi-gsrw-btn"
+          style="padding:11px 20px;border:0;border-radius:10px;background:#5a6b52;color:#fff;font-weight:700;cursor:pointer;min-height:48px">Prüfen</button>
+      </div>
+      <div id="bschi-gsrw-out" style="margin-top:10px;font-size:15px"></div>
+    </div>
+    <script>
+    document.getElementById('bschi-gsrw-btn').addEventListener('click', function(){
+      var btn = this, out = document.getElementById('bschi-gsrw-out');
+      var code = document.getElementById('bschi-gsrw-code').value.trim();
+      if (!code) return;
+      btn.disabled = true; btn.textContent = 'Prüft …'; out.textContent = '';
+      fetch('<?php echo esc_js( rest_url( 'bschi/v1/gutschein-restwert' ) ); ?>', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({code: code})
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok && d.typ === 'laden') {
+          out.innerHTML = d.restwert != null
+            ? '<b>Laden-Gutschein</b> – Restwert: <b>' + Number(d.restwert).toFixed(2).replace('.', ',') + ' €</b> (von ' + Number(d.betrag).toFixed(2).replace('.', ',') + ' €)'
+            : '<b>Laden-Gutschein</b> über ' + Number(d.betrag).toFixed(2).replace('.', ',') + ' € – Restwert gerade nicht abrufbar, bitte an der Kasse fragen.';
+        } else if (d.ok) {
+          out.innerHTML = '<b>Online-Gutschein</b> über ' + Number(d.betrag).toFixed(2).replace('.', ',') + ' € – ' + d.status + '.';
+        } else {
+          out.textContent = d.msg || 'Gutschein nicht gefunden.';
+        }
+      }).catch(function(){ out.textContent = 'Abfrage gerade nicht möglich.'; })
+        .finally(function(){ btn.disabled = false; btn.textContent = 'Prüfen'; });
+    });
+    </script>
+    <?php
+    return (string) ob_get_clean();
+} );
