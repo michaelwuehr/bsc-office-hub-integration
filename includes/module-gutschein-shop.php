@@ -563,3 +563,37 @@ add_action( 'woocommerce_account_gutscheine_endpoint', function () {
     }
     echo '</tbody></table>';
 } );
+
+// ─── Coupon-Status (Batch) für die Office-Statistik ──────────────────────────
+
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'bschi/v1', '/coupon-status', [
+        'methods'             => 'POST',
+        'callback'            => 'bschi_gs_coupon_status',
+        'permission_callback' => 'bschi_voucher_permission',   // X-BSCHI-Secret (wie /coupon)
+    ] );
+} );
+
+function bschi_gs_coupon_status( WP_REST_Request $request ) {
+    $codes = $request->get_param( 'codes' );
+    if ( ! is_array( $codes ) ) {
+        return new WP_REST_Response( [ 'ok' => false ], 400 );
+    }
+    $out = [];
+    foreach ( array_slice( $codes, 0, 300 ) as $code ) {
+        $code = sanitize_text_field( (string) $code );
+        $cid  = wc_get_coupon_id_by_code( strtolower( $code ) ) ?: wc_get_coupon_id_by_code( $code );
+        if ( ! $cid ) {
+            $out[] = [ 'code' => $code, 'gefunden' => false ];
+            continue;
+        }
+        $coupon = new WC_Coupon( $cid );
+        $out[]  = [
+            'code'       => $code,
+            'gefunden'   => true,
+            'betrag'     => (float) $coupon->get_amount(),
+            'eingeloest' => $coupon->get_usage_count() >= max( 1, (int) $coupon->get_usage_limit() ),
+        ];
+    }
+    return new WP_REST_Response( [ 'ok' => true, 'status' => $out ], 200 );
+}
