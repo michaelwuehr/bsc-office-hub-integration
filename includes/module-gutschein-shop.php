@@ -123,7 +123,7 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
 
         <h3 style="margin:20px 0 8px">Vorschau</h3>
         <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;background:#f7f5f1">
-          <iframe id="bschi-gs-preview" style="width:100%;height:430px;border:0" title="Gutschein-Vorschau"></iframe>
+          <iframe id="bschi-gs-preview" sandbox="" style="width:100%;height:430px;border:0" title="Gutschein-Vorschau"></iframe>
         </div>
 
         <button type="submit" style="margin-top:16px;padding:14px 28px;border:0;border-radius:10px;background:#5a6b52;color:#fff;font-size:16px;font-weight:700;cursor:pointer;min-height:48px">
@@ -175,6 +175,7 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
           var f = document.createElement('iframe');
           f.style.cssText = 'width:100%;height:110px;border:0;pointer-events:none';
           f.setAttribute('scrolling', 'no');
+          f.setAttribute('sandbox', '');
           f.srcdoc = previewHtml(d).replace('</style>',
             '.blatt{transform-origin:top left;transform:scale(0.17);width:210mm;height:150mm}</style>');
           var lbl = document.createElement('div');
