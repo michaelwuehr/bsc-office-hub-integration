@@ -471,3 +471,94 @@ add_shortcode( 'bsc_gutschein_restwert', function (): string {
     <?php
     return (string) ob_get_clean();
 } );
+
+// ─── Mein Konto → Gutscheine (Kundenansicht mit Restwert) ────────────────────
+
+add_action( 'init', function () {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return;
+    }
+    add_rewrite_endpoint( 'gutscheine', EP_ROOT | EP_PAGES );
+    if ( ! get_option( 'bschi_gs_rewrite_flushed' ) ) {
+        flush_rewrite_rules();
+        update_option( 'bschi_gs_rewrite_flushed', 1 );
+    }
+} );
+
+add_filter( 'woocommerce_account_menu_items', function ( $items ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return $items;
+    }
+    // Nach "Bestellungen" einsortieren
+    $neu = [];
+    foreach ( $items as $k => $v ) {
+        $neu[ $k ] = $v;
+        if ( 'orders' === $k ) {
+            $neu['gutscheine'] = 'Gutscheine';
+        }
+    }
+    if ( ! isset( $neu['gutscheine'] ) ) {
+        $neu['gutscheine'] = 'Gutscheine';
+    }
+    return $neu;
+} );
+
+add_action( 'woocommerce_account_gutscheine_endpoint', function () {
+    $user = wp_get_current_user();
+    $email = $user && $user->user_email ? $user->user_email : '';
+    if ( ! $email ) {
+        echo '<p>Keine E-Mail-Adresse am Konto hinterlegt.</p>';
+        return;
+    }
+    // Office fragen (5 Minuten je Nutzer zwischengespeichert – Tillhub-Restwert ist live teuer)
+    $cache_key = 'bschi_gs_konto_' . md5( strtolower( $email ) );
+    $daten = get_transient( $cache_key );
+    if ( false === $daten ) {
+        $endpoint = bschi_hub_url( '/api/v1/shop/gutscheine-kunde' );
+        $daten = [];
+        if ( $endpoint ) {
+            $resp = wp_remote_post( $endpoint, [
+                'timeout' => 12,
+                'headers' => bschi_hub_headers(),
+                'body'    => wp_json_encode( [ 'email' => $email ] ),
+            ] );
+            if ( ! is_wp_error( $resp ) && wp_remote_retrieve_response_code( $resp ) === 200 ) {
+                $d = json_decode( wp_remote_retrieve_body( $resp ), true );
+                $daten = is_array( $d['gutscheine'] ?? null ) ? $d['gutscheine'] : [];
+            }
+        }
+        set_transient( $cache_key, $daten, 5 * MINUTE_IN_SECONDS );
+    }
+    if ( ! $daten ) {
+        echo '<p>Du hast noch keine Gutscheine bei uns gekauft. '
+           . 'Schau doch mal beim <a href="' . esc_url( home_url( '/gutschein/' ) ) . '">Gutschein-Konfigurator</a> vorbei.</p>';
+        return;
+    }
+    echo '<h3>Deine Gutscheine</h3><table class="woocommerce-table shop_table" style="width:100%"><thead><tr>'
+       . '<th>Datum</th><th>Art</th><th>Betrag</th><th>Code</th><th>Status / Restwert</th></tr></thead><tbody>';
+    foreach ( $daten as $g ) {
+        $typ = 'laden' === ( $g['typ'] ?? '' ) ? 'Laden' : 'Online-Shop';
+        $status = '';
+        if ( 'laden' === ( $g['typ'] ?? '' ) ) {
+            $status = null !== ( $g['restwert'] ?? null )
+                ? 'Restwert: <b>' . number_format( (float) $g['restwert'], 2, ',', '.' ) . ' €</b>'
+                : 'Restwert an der Kasse abfragbar';
+        } else {
+            // Online-Coupon: Status lokal aus WooCommerce
+            $cid = $g['code'] ? wc_get_coupon_id_by_code( strtolower( $g['code'] ) ) : 0;
+            if ( $cid ) {
+                $coupon = new WC_Coupon( $cid );
+                $status = $coupon->get_usage_count() >= max( 1, (int) $coupon->get_usage_limit() )
+                    ? 'eingelöst' : '<b>noch nicht eingelöst</b>';
+            }
+        }
+        $zustellung = ! empty( $g['zustellung'] ) ? '<br><span style="font-size:12px;color:#777">Geschenk-Zustellung: '
+            . esc_html( $g['zustellung'] ) . '</span>' : '';
+        echo '<tr><td>' . esc_html( implode( '.', array_reverse( explode( '-', (string) ( $g['datum'] ?? '' ) ) ) ) ) . '</td>'
+           . '<td>' . esc_html( $typ ) . ( ! empty( $g['empfaenger'] ) ? '<br><span style="font-size:12px;color:#777">für ' . esc_html( $g['empfaenger'] ) . '</span>' : '' ) . '</td>'
+           . '<td>' . number_format( (float) ( $g['betrag'] ?? 0 ), 2, ',', '.' ) . ' €</td>'
+           . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . '</td>'
+           . '<td>' . $status . $zustellung . '</td></tr>';
+    }
+    echo '</tbody></table>';
+} );
