@@ -93,6 +93,7 @@ function bschi_render_admin_page(): void {
 
             // First-Party-Tracking (Marketing Hub)
             'feature_tracking'      => isset( $_POST['feature_tracking'] ),
+            'feature_gutschein_shop' => isset( $_POST['feature_gutschein_shop'] ),
             'tracking_hub_url'      => esc_url_raw( trim( $_POST['tracking_hub_url'] ?? '' ) ) ?: 'https://marketing.bsc-theresienthal.de',
             'tracking_secret'       => sanitize_text_field( trim( $_POST['tracking_secret'] ?? '' ) ),
 
@@ -304,6 +305,8 @@ function bschi_render_admin_page(): void {
                     <td>
                         <label><input type="checkbox" name="feature_tracking" value="1" <?= checked( $s['feature_tracking'] ?? false, true, false ); ?>>
                             First-Party-Tracking aktivieren (Kampagnen-Analytics)</label>
+                        <label><input type="checkbox" name="feature_gutschein_shop" value="1" <?= checked( $s['feature_gutschein_shop'] ?? false, true, false ); ?>>
+                            <strong>Geschenkgutschein-Konfigurator</strong> – Shortcode <code>[bsc_gutschein_shop]</code>: Kunden konfigurieren Gutscheine (Online-Shop oder Laden) mit Design-Vorlagen; Ausstellung + PDF-Mail über den Office Hub nach Zahlungseingang.</label>
                         <p class="description">
                             Startet erst nach Consent „Statistik" (Complianz), keine Cookies, Daten gehen
                             ausschließlich an den eigenen Marketing Hub. <strong>Vor der Aktivierung die
