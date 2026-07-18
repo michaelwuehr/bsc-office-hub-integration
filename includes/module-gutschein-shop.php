@@ -822,6 +822,10 @@ function bschi_gs_ajax_apply() {
     $code = sanitize_text_field( wp_unslash( $_POST['code'] ?? '' ) );
     $endpoint = bschi_hub_url( '/api/v1/shop/gutschein-pruefen' );
     if ( ! $code || ! $endpoint ) wp_send_json( [ 'ok' => false, 'msg' => 'Ungültig' ] );
+    // Doppel-Rabatt verhindern: Code liegt schon als (virtueller) Coupon im Warenkorb
+    if ( WC()->cart && WC()->cart->has_discount( $code ) ) {
+        wp_send_json( [ 'ok' => false, 'msg' => 'Dieser Gutschein ist bereits angewendet.' ] );
+    }
     $r = wp_remote_post( $endpoint, [ 'timeout' => 12, 'headers' => bschi_hub_headers(),
         'body' => wp_json_encode( [ 'code' => $code ] ) ] );
     if ( is_wp_error( $r ) || wp_remote_retrieve_response_code( $r ) !== 200 ) {
@@ -871,6 +875,17 @@ function bschi_gs_redeem_on_paid( $order_id ) {
             break;
         }
     }
+    // Auch das Standard-WC-Gutscheinfeld pruefen: virtueller Kombi-Coupon (kein WC-Post)
+    if ( ! $code || $betrag <= 0 ) {
+        foreach ( $order->get_items( 'coupon' ) as $ci ) {
+            $c = trim( (string) $ci->get_code() );
+            if ( preg_match( '/^\d{10,14}$/', $c ) && ! wc_get_coupon_id_by_code( $c ) ) {
+                $code   = $c;
+                $betrag = (float) $ci->get_discount() + (float) $ci->get_discount_tax();
+                break;
+            }
+        }
+    }
     if ( ! $code || $betrag <= 0 ) return;
     $endpoint = bschi_hub_url( '/api/v1/shop/gutschein-einloesen' );
     if ( ! $endpoint ) return;
@@ -880,7 +895,11 @@ function bschi_gs_redeem_on_paid( $order_id ) {
         $d = json_decode( wp_remote_retrieve_body( $r ), true );
         $order->update_meta_data( '_bschi_gs_redeemed', gmdate( 'c' ) );
         $note = 'Gutschein ' . $code . ' eingelöst: ' . wc_price( $betrag );
-        if ( ! empty( $d['rest_code'] ) ) $note .= '. Restguthaben ' . wc_price( (float) $d['rest'] ) . ' als neuer Gutschein ' . $d['rest_code'] . ' versendet.';
+        if ( ! empty( $d['rest_code'] ) && ! empty( $d['gleiche_karte'] ) ) {
+            $note .= '. Restguthaben ' . wc_price( (float) $d['rest'] ) . ' bleibt auf dem Gutschein (gleicher Code).';
+        } elseif ( ! empty( $d['rest_code'] ) ) {
+            $note .= '. Restguthaben ' . wc_price( (float) $d['rest'] ) . ' als neuer Gutschein ' . $d['rest_code'] . ' versendet.';
+        }
         $order->add_order_note( $note );
         $order->save();
     } else {
@@ -888,6 +907,58 @@ function bschi_gs_redeem_on_paid( $order_id ) {
         $order->save();
     }
     if ( WC()->session ) WC()->session->__unset( 'bschi_gs_redeem' );
+}
+
+// 5) Standard-WC-Gutscheinfeld: unbekannte 12-stellige Codes gegen den Office Hub
+//    pruefen und als VIRTUELLEN Coupon anwenden (fixed_cart, Restwert live).
+//    So funktioniert der Kombi-Gutschein in BEIDEN Feldern - dem eigenen Block und
+//    dem normalen WooCommerce-"Gutscheincode"-Feld ("existiert nicht"-Problem).
+add_filter( 'woocommerce_get_shop_coupon_data', 'bschi_gs_virtual_coupon', 10, 2 );
+function bschi_gs_virtual_coupon( $data, $code ) {
+    if ( false !== $data || ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return $data;
+    }
+    $code = trim( (string) $code );
+    if ( ! preg_match( '/^\d{10,14}$/', $code ) || wc_get_coupon_id_by_code( $code ) ) {
+        return $data;   // kein Kombi-Code-Muster bzw. echter WC-Coupon (typ online/Aura)
+    }
+    // Doppel-Rabatt verhindern: derselbe Code haengt schon als Gebuehr in der Session
+    if ( function_exists( 'WC' ) && WC()->session ) {
+        $a = WC()->session->get( 'bschi_gs_redeem' );
+        if ( is_array( $a ) && ( $a['code'] ?? '' ) === $code ) {
+            return $data;
+        }
+    }
+    $cached = get_transient( 'bschi_gs_vc_' . $code );
+    if ( 'invalid' === $cached ) {
+        return $data;
+    }
+    $d = is_array( $cached ) ? $cached : null;
+    if ( null === $d ) {
+        $endpoint = bschi_hub_url( '/api/v1/shop/gutschein-pruefen' );
+        if ( ! $endpoint ) {
+            return $data;
+        }
+        $r = wp_remote_post( $endpoint, [ 'timeout' => 8, 'headers' => bschi_hub_headers(),
+            'body' => wp_json_encode( [ 'code' => $code ] ) ] );
+        if ( is_wp_error( $r ) || wp_remote_retrieve_response_code( $r ) !== 200 ) {
+            return $data;
+        }
+        $d = json_decode( wp_remote_retrieve_body( $r ), true ) ?: [];
+        if ( empty( $d['gueltig'] ) || (float) ( $d['betrag'] ?? 0 ) <= 0 ) {
+            set_transient( 'bschi_gs_vc_' . $code, 'invalid', MINUTE_IN_SECONDS );
+            return $data;
+        }
+        set_transient( 'bschi_gs_vc_' . $code, $d, MINUTE_IN_SECONDS );
+    }
+    return [
+        'code'           => $code,
+        'amount'         => (float) $d['betrag'],
+        'discount_type'  => 'fixed_cart',
+        'individual_use' => false,
+        'usage_limit'    => 0,
+        'description'    => 'BSC Geschenkgutschein (Guthaben ' . number_format( (float) $d['betrag'], 2, ',', '.' ) . ' €)',
+    ];
 }
 
 // ═══════════════ WALLET: Aufladen + Mit Guthaben zahlen (P2) ═══════════════════
