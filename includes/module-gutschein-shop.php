@@ -73,13 +73,17 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
 
         <h3 style="margin:20px 0 8px">2. Wo soll der Gutschein gelten?</h3>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <label class="bschi-gs-typ" style="flex:1;min-width:220px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
-            <input type="radio" name="bschi_gs_typ" value="online" checked>
-            <b>Online-Shop</b><br><span style="font-size:13px;color:#666">Einlösbar auf woidsiederei.de – Code zum Eingeben an der Kasse.</span>
+          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
+            <input type="radio" name="bschi_gs_typ" value="kombi" checked>
+            <b>Überall (empfohlen)</b><br><span style="font-size:13px;color:#666">Online <b>und</b> im Laden einlösbar – auch in Teilbeträgen. Der Restbetrag kommt als neuer Gutschein.</span>
           </label>
-          <label class="bschi-gs-typ" style="flex:1;min-width:220px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
+          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
+            <input type="radio" name="bschi_gs_typ" value="online">
+            <b>Nur Online-Shop</b><br><span style="font-size:13px;color:#666">Einlösbar auf woidsiederei.de – Code zum Eingeben an der Kasse.</span>
+          </label>
+          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
             <input type="radio" name="bschi_gs_typ" value="laden">
-            <b>Laden</b><br><span style="font-size:13px;color:#666">Einlösbar in Theresienthal &amp; Schweinhütt – mit Barcode für die Kasse.</span>
+            <b>Nur Laden</b><br><span style="font-size:13px;color:#666">Einlösbar in Theresienthal &amp; Schweinhütt – mit Barcode für die Kasse.</span>
           </label>
         </div>
 
@@ -154,9 +158,10 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
           .split('{{BETRAG}}').join(esc(betrag))
           .split('{{CODE_BLOCK}}').join('<span class="nur-code">Code nach Kauf</span>')
           .split('{{CODE_NR}}').join('folgt nach Kauf')
-          .split('{{TYP_LABEL}}').join(typ === 'laden'
-            ? 'Einl&ouml;sbar in unseren L&auml;den (Theresienthal &amp; Schweinh&uuml;tt)'
-            : 'Einl&ouml;sbar im Online-Shop woidsiederei.de');
+          .split('{{TYP_LABEL}}').join(
+            typ === 'laden' ? 'Einl&ouml;sbar in unseren L&auml;den (Theresienthal &amp; Schweinh&uuml;tt)'
+            : typ === 'online' ? 'Einl&ouml;sbar im Online-Shop woidsiederei.de'
+            : '&Uuml;berall einl&ouml;sbar &ndash; online und in unseren L&auml;den');
       }
       function renderPreview(){
         var d = designs.find(function(x){ return x.key === cfg.design; }) || designs[0];
@@ -237,7 +242,8 @@ add_action( 'template_redirect', function () {
         wc_add_notice( 'Bitte einen Gutschein-Betrag zwischen 5 und 250 € wählen.', 'error' );
         return;
     }
-    $typ = ( $_POST['bschi_gs_typ'] ?? '' ) === 'laden' ? 'laden' : 'online';
+    $typ_in = (string) ( $_POST['bschi_gs_typ'] ?? '' );
+    $typ = in_array( $typ_in, [ 'online', 'laden', 'kombi' ], true ) ? $typ_in : 'kombi';
     $daten = [
         'typ'        => $typ,
         'betrag'     => $betrag,
@@ -279,7 +285,7 @@ add_action( 'woocommerce_before_calculate_totals', function ( $cart ) {
 add_filter( 'woocommerce_get_item_data', function ( $rows, $item ) {
     if ( ! empty( $item['bschi_gutschein'] ) ) {
         $g = $item['bschi_gutschein'];
-        $rows[] = [ 'key' => 'Einsatzort', 'value' => $g['typ'] === 'laden' ? 'Laden (Theresienthal & Schweinhütt)' : 'Online-Shop' ];
+        $rows[] = [ 'key' => 'Einsatzort', 'value' => $g['typ'] === 'laden' ? 'Laden (Theresienthal & Schweinhütt)' : ( $g['typ'] === 'kombi' ? 'Überall (online + Laden)' : 'Online-Shop' ) ];
         if ( ! empty( $g['empfaenger'] ) ) {
             $rows[] = [ 'key' => 'Für', 'value' => esc_html( $g['empfaenger'] ) ];
         }
@@ -596,4 +602,32 @@ function bschi_gs_coupon_status( WP_REST_Request $request ) {
         ];
     }
     return new WP_REST_Response( [ 'ok' => true, 'status' => $out ], 200 );
+}
+
+// ─── Coupon deaktivieren (Split-Modell: alter Gutschein wird storniert) ──────
+
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'bschi/v1', '/coupon-deactivate', [
+        'methods'             => 'POST',
+        'callback'            => 'bschi_gs_coupon_deactivate',
+        'permission_callback' => 'bschi_voucher_permission',   // X-BSCHI-Secret
+    ] );
+} );
+
+function bschi_gs_coupon_deactivate( WP_REST_Request $request ) {
+    if ( ! class_exists( 'WC_Coupon' ) ) {
+        return new WP_REST_Response( [ 'ok' => false ], 503 );
+    }
+    $code = sanitize_text_field( (string) $request->get_param( 'code' ) );
+    $cid  = $code ? ( wc_get_coupon_id_by_code( strtolower( $code ) ) ?: wc_get_coupon_id_by_code( $code ) ) : 0;
+    if ( ! $cid ) {
+        return new WP_REST_Response( [ 'ok' => true, 'note' => 'nicht gefunden' ], 200 );
+    }
+    $coupon = new WC_Coupon( $cid );
+    $coupon->set_amount( 0 );
+    $coupon->set_date_expires( gmdate( 'Y-m-d', time() - 86400 ) );  // gestern -> ungültig
+    $coupon->set_usage_limit( 1 );
+    $coupon->update_meta_data( '_bschi_storniert', gmdate( 'c' ) );
+    $coupon->save();
+    return new WP_REST_Response( [ 'ok' => true, 'deaktiviert' => $code ], 200 );
 }

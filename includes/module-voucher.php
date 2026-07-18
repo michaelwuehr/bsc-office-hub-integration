@@ -41,11 +41,16 @@ function bschi_voucher_create( WP_REST_Request $request ) {
     }
     $title = sanitize_text_field( (string) $request->get_param( 'title' ) );
 
-    // Eindeutigen, gut lesbaren Code erzeugen (kollisionsgeprüft)
+    // Code: entweder vorgegeben (kombi = gleicher Code wie Tillhub) oder generiert
+    $wunsch = sanitize_text_field( (string) $request->get_param( 'code' ) );
     $code = '';
-    for ( $i = 0; $i < 6; $i++ ) {
-        $candidate = 'AURA-' . strtoupper( wp_generate_password( 8, false, false ) );
-        if ( ! wc_get_coupon_id_by_code( $candidate ) ) { $code = $candidate; break; }
+    if ( $wunsch && ! wc_get_coupon_id_by_code( strtolower( $wunsch ) ) && ! wc_get_coupon_id_by_code( $wunsch ) ) {
+        $code = $wunsch;
+    } else {
+        for ( $i = 0; $i < 6; $i++ ) {
+            $candidate = 'AURA-' . strtoupper( wp_generate_password( 8, false, false ) );
+            if ( ! wc_get_coupon_id_by_code( $candidate ) ) { $code = $candidate; break; }
+        }
     }
     if ( $code === '' ) {
         return new WP_REST_Response( [ 'ok' => false, 'error' => 'Kein freier Code gefunden' ], 500 );
