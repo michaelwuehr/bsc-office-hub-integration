@@ -530,44 +530,56 @@ add_action( 'woocommerce_account_gutscheine_endpoint', function () {
                 'body'    => wp_json_encode( [ 'email' => $email ] ),
             ] );
             if ( ! is_wp_error( $resp ) && wp_remote_retrieve_response_code( $resp ) === 200 ) {
-                $d = json_decode( wp_remote_retrieve_body( $resp ), true );
-                $daten = is_array( $d['gutscheine'] ?? null ) ? $d['gutscheine'] : [];
+                $daten = json_decode( wp_remote_retrieve_body( $resp ), true ) ?: [];
             }
         }
         set_transient( $cache_key, $daten, 5 * MINUTE_IN_SECONDS );
     }
-    if ( ! $daten ) {
+    $aktive     = is_array( $daten['aktive'] ?? null ) ? $daten['aktive'] : [];
+    $eingeloest = is_array( $daten['eingeloest'] ?? null ) ? $daten['eingeloest'] : [];
+    if ( ! $aktive && ! $eingeloest ) {
         echo '<p>Du hast noch keine Gutscheine bei uns gekauft. '
            . 'Schau doch mal beim <a href="' . esc_url( home_url( '/gutschein/' ) ) . '">Gutschein-Konfigurator</a> vorbei.</p>';
         return;
     }
-    echo '<h3>Deine Gutscheine</h3><table class="woocommerce-table shop_table" style="width:100%"><thead><tr>'
-       . '<th>Datum</th><th>Art</th><th>Betrag</th><th>Code</th><th>Status / Restwert</th></tr></thead><tbody>';
-    foreach ( $daten as $g ) {
-        $typ = 'laden' === ( $g['typ'] ?? '' ) ? 'Laden' : 'Online-Shop';
-        $status = '';
-        if ( 'laden' === ( $g['typ'] ?? '' ) ) {
-            $status = null !== ( $g['restwert'] ?? null )
-                ? 'Restwert: <b>' . number_format( (float) $g['restwert'], 2, ',', '.' ) . ' €</b>'
-                : 'Restwert an der Kasse abfragbar';
-        } else {
-            // Online-Coupon: Status lokal aus WooCommerce
-            $cid = $g['code'] ? wc_get_coupon_id_by_code( strtolower( $g['code'] ) ) : 0;
-            if ( $cid ) {
-                $coupon = new WC_Coupon( $cid );
-                $status = $coupon->get_usage_count() >= max( 1, (int) $coupon->get_usage_limit() )
-                    ? 'eingelöst' : '<b>noch nicht eingelöst</b>';
-            }
+    $ddmmyy = function ( $d ) { return esc_html( implode( '.', array_reverse( explode( '-', (string) $d ) ) ) ); };
+
+    // Guthaben-Übersicht
+    echo '<div style="background:#5a6b52;color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
+       . '<div><div style="font-size:13px;opacity:.85">Dein verfügbares Guthaben</div>'
+       . '<div style="font-size:30px;font-weight:800">' . number_format( (float) ( $daten['guthaben'] ?? 0 ), 2, ',', '.' ) . ' €</div></div>'
+       . '<div style="font-size:13px;opacity:.9;text-align:right">' . count( $aktive ) . ' aktive<br>' . count( $eingeloest ) . ' eingelöste Gutscheine</div></div>';
+
+    // Aktive Gutscheine
+    if ( $aktive ) {
+        echo '<h3>Verfügbare Gutscheine</h3><table class="woocommerce-table shop_table" style="width:100%"><thead><tr>'
+           . '<th>Datum</th><th>Art</th><th>Guthaben</th><th>Code</th></tr></thead><tbody>';
+        foreach ( $aktive as $g ) {
+            $verf = (float) ( $g['verfuegbar'] ?? $g['betrag'] );
+            $teil = ! empty( $g['eingeloest_extern'] ) ? '<br><span style="font-size:11px;color:#777">von ' . number_format( (float) $g['betrag'], 2, ',', '.' ) . ' € · teilw. eingelöst</span>' : '';
+            $herk = ! empty( $g['aus_rest'] ) ? '<br><span style="font-size:11px;color:#777">Restguthaben-Gutschein</span>' : '';
+            $zu   = ! empty( $g['zustellung'] ) ? '<br><span style="font-size:11px;color:#777">Geschenk: ' . esc_html( $g['zustellung'] ) . '</span>' : '';
+            echo '<tr><td>' . $ddmmyy( $g['datum'] ?? '' ) . '</td>'
+               . '<td>' . esc_html( $g['typ_txt'] ?? '' ) . ( ! empty( $g['empfaenger'] ) ? '<br><span style="font-size:11px;color:#777">für ' . esc_html( $g['empfaenger'] ) . '</span>' : '' ) . $herk . '</td>'
+               . '<td><b>' . number_format( $verf, 2, ',', '.' ) . ' €</b>' . $teil . '</td>'
+               . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . $zu . '</td></tr>';
         }
-        $zustellung = ! empty( $g['zustellung'] ) ? '<br><span style="font-size:12px;color:#777">Geschenk-Zustellung: '
-            . esc_html( $g['zustellung'] ) . '</span>' : '';
-        echo '<tr><td>' . esc_html( implode( '.', array_reverse( explode( '-', (string) ( $g['datum'] ?? '' ) ) ) ) ) . '</td>'
-           . '<td>' . esc_html( $typ ) . ( ! empty( $g['empfaenger'] ) ? '<br><span style="font-size:12px;color:#777">für ' . esc_html( $g['empfaenger'] ) . '</span>' : '' ) . '</td>'
-           . '<td>' . number_format( (float) ( $g['betrag'] ?? 0 ), 2, ',', '.' ) . ' €</td>'
-           . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . '</td>'
-           . '<td>' . $status . $zustellung . '</td></tr>';
+        echo '</tbody></table>';
     }
-    echo '</tbody></table>';
+
+    // Eingelöste Gutscheine (Historie)
+    if ( $eingeloest ) {
+        echo '<h3 style="margin-top:22px">Bereits eingelöst</h3><table class="woocommerce-table shop_table" style="width:100%"><thead><tr>'
+           . '<th>Eingelöst am</th><th>Art</th><th>Betrag</th><th>Wo</th><th>Code</th></tr></thead><tbody>';
+        foreach ( $eingeloest as $g ) {
+            echo '<tr style="opacity:.75"><td>' . $ddmmyy( $g['eingeloest_am'] ?? $g['datum'] ?? '' ) . '</td>'
+               . '<td>' . esc_html( $g['typ_txt'] ?? '' ) . '</td>'
+               . '<td>' . number_format( (float) ( $g['eingeloest_betrag'] ?? $g['betrag'] ), 2, ',', '.' ) . ' €</td>'
+               . '<td>' . esc_html( $g['kanal'] ?? '' ) . '</td>'
+               . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . '</td></tr>';
+        }
+        echo '</tbody></table>';
+    }
 } );
 
 // ─── Coupon-Status (Batch) für die Office-Statistik ──────────────────────────
