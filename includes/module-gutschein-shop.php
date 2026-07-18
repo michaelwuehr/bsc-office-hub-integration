@@ -635,16 +635,18 @@ add_action( 'woocommerce_account_gutscheine_endpoint', function () {
     // Aktive Gutscheine
     if ( $aktive ) {
         echo '<h3>Verfügbare Gutscheine</h3><table class="woocommerce-table shop_table" style="width:100%"><thead><tr>'
-           . '<th>Datum</th><th>Art</th><th>Guthaben</th><th>Code</th></tr></thead><tbody>';
+           . '<th>Datum</th><th>Art</th><th>Guthaben</th><th>Code</th><th>PDF</th></tr></thead><tbody>';
         foreach ( $aktive as $g ) {
             $verf = (float) ( $g['verfuegbar'] ?? $g['betrag'] );
             $teil = ! empty( $g['eingeloest_extern'] ) ? '<br><span style="font-size:11px;color:#777">von ' . number_format( (float) $g['betrag'], 2, ',', '.' ) . ' € · teilw. eingelöst</span>' : '';
             $herk = ! empty( $g['aus_rest'] ) ? '<br><span style="font-size:11px;color:#777">Restguthaben-Gutschein</span>' : '';
             $zu   = ! empty( $g['zustellung'] ) ? '<br><span style="font-size:11px;color:#777">Geschenk: ' . esc_html( $g['zustellung'] ) . '</span>' : '';
+            $pdf_url = wp_nonce_url( admin_url( 'admin-post.php?action=bschi_gs_pdf&code=' . rawurlencode( (string) ( $g['code'] ?? '' ) ) ), 'bschi_gs_pdf_' . ( $g['code'] ?? '' ) );
             echo '<tr><td>' . $ddmmyy( $g['datum'] ?? '' ) . '</td>'
                . '<td>' . esc_html( $g['typ_txt'] ?? '' ) . ( ! empty( $g['empfaenger'] ) ? '<br><span style="font-size:11px;color:#777">für ' . esc_html( $g['empfaenger'] ) . '</span>' : '' ) . $herk . '</td>'
                . '<td><b>' . number_format( $verf, 2, ',', '.' ) . ' €</b>' . $teil . '</td>'
-               . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . $zu . '</td></tr>';
+               . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . $zu . '</td>'
+               . '<td><a href="' . esc_url( $pdf_url ) . '">herunterladen</a></td></tr>';
         }
         echo '</tbody></table>';
     }
@@ -1093,3 +1095,29 @@ add_action( 'wp_ajax_bschi_wl_convert', function () {
     }
     wp_send_json( [ 'ok' => false, 'msg' => $d['detail'] ?? 'Umwandlung fehlgeschlagen' ] );
 } );
+
+// ─── Gutschein-PDF-Download (Mein Konto -> Gutscheine) ───────────────────────
+
+add_action( 'admin_post_bschi_gs_pdf', 'bschi_gs_pdf_download' );
+function bschi_gs_pdf_download() {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) || ! is_user_logged_in() ) {
+        wp_die( 'Bitte anmelden.' );
+    }
+    $code = sanitize_text_field( wp_unslash( $_GET['code'] ?? '' ) );
+    if ( ! $code || ! check_admin_referer( 'bschi_gs_pdf_' . $code ) ) {
+        wp_die( 'Ungültige Anfrage.' );
+    }
+    $email = wp_get_current_user()->user_email;
+    $ep = bschi_hub_url( '/api/v1/shop/gutschein-pdf' );
+    if ( ! $ep ) { wp_die( 'Nicht verfügbar.' ); }
+    $resp = wp_remote_post( $ep, [ 'timeout' => 20, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'code' => $code, 'email' => $email ] ) ] );
+    if ( is_wp_error( $resp ) || wp_remote_retrieve_response_code( $resp ) !== 200 ) {
+        wp_die( 'Gutschein-PDF nicht verfügbar oder keine Berechtigung.' );
+    }
+    nocache_headers();
+    header( 'Content-Type: application/pdf' );
+    header( 'Content-Disposition: attachment; filename="Gutschein-' . $code . '.pdf"' );
+    echo wp_remote_retrieve_body( $resp );
+    exit;
+}
