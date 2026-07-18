@@ -631,3 +631,127 @@ function bschi_gs_coupon_deactivate( WP_REST_Request $request ) {
     $coupon->save();
     return new WP_REST_Response( [ 'ok' => true, 'deaktiviert' => $code ], 200 );
 }
+
+// ═══ Online-Einlösung an der Kasse (Universal-/Online-Gutschein, Split-Modell) ═══
+// Ablauf: Kunde gibt Code im Warenkorb/Checkout ein -> Office prüft -> Rabatt als
+// negative Gebühr (Guthaben wie Bargeld auf den Warenkorb). Bei bezahlter Bestellung
+// ruft das Plugin den Office-Split-Kern -> alter Gutschein storniert, Rest neu.
+
+// 1) Code-Eingabefeld unter dem Warenkorb
+add_action( 'woocommerce_cart_totals_after_order_total', 'bschi_gs_redeem_field' );
+add_action( 'woocommerce_review_order_after_order_total', 'bschi_gs_redeem_field' );
+function bschi_gs_redeem_field() {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) return;
+    $aktiv = WC()->session ? WC()->session->get( 'bschi_gs_redeem' ) : null;
+    echo '<tr class="bschi-gs-redeem-row"><th>Gutschein</th><td>';
+    if ( is_array( $aktiv ) && ! empty( $aktiv['code'] ) ) {
+        echo 'Eingelöst: <b>' . esc_html( $aktiv['code'] ) . '</b> '
+           . '(' . wc_price( (float) $aktiv['betrag'] ) . ' Guthaben) '
+           . '<a href="#" id="bschi-gs-remove" style="color:#a00">entfernen</a>';
+    } else {
+        echo '<input type="text" id="bschi-gs-code" placeholder="Gutschein-Code" style="width:60%;padding:6px">'
+           . ' <button type="button" id="bschi-gs-apply" class="button">Einlösen</button>'
+           . '<div id="bschi-gs-msg" style="font-size:12px;color:#a00;margin-top:4px"></div>';
+    }
+    echo '</td></tr>';
+    ?>
+    <script>
+    (function(){
+      var apply=document.getElementById('bschi-gs-apply'), rem=document.getElementById('bschi-gs-remove');
+      function post(action, code){
+        var fd=new FormData(); fd.append('action',action); if(code)fd.append('code',code);
+        fd.append('nonce','<?php echo esc_js( wp_create_nonce( 'bschi_gs_redeem' ) ); ?>');
+        return fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();});
+      }
+      if(apply)apply.addEventListener('click',function(){
+        var code=(document.getElementById('bschi-gs-code').value||'').trim();
+        var msg=document.getElementById('bschi-gs-msg');
+        if(!code)return; apply.disabled=true; msg.textContent='Prüfe …';
+        post('bschi_gs_apply',code).then(function(d){
+          if(d&&d.ok){ location.reload(); }
+          else { msg.textContent=(d&&d.msg)||'Gutschein ungültig'; apply.disabled=false; }
+        }).catch(function(){msg.textContent='Fehler';apply.disabled=false;});
+      });
+      if(rem)rem.addEventListener('click',function(e){e.preventDefault();post('bschi_gs_remove').then(function(){location.reload();});});
+    })();
+    </script>
+    <?php
+}
+
+// 2) AJAX: Code anwenden / entfernen
+add_action( 'wp_ajax_bschi_gs_apply', 'bschi_gs_ajax_apply' );
+add_action( 'wp_ajax_nopriv_bschi_gs_apply', 'bschi_gs_ajax_apply' );
+function bschi_gs_ajax_apply() {
+    if ( ! wp_verify_nonce( $_POST['nonce'] ?? '', 'bschi_gs_redeem' ) || ! WC()->session ) {
+        wp_send_json( [ 'ok' => false, 'msg' => 'Sitzung abgelaufen' ] );
+    }
+    $code = sanitize_text_field( wp_unslash( $_POST['code'] ?? '' ) );
+    $endpoint = bschi_hub_url( '/api/v1/shop/gutschein-pruefen' );
+    if ( ! $code || ! $endpoint ) wp_send_json( [ 'ok' => false, 'msg' => 'Ungültig' ] );
+    $r = wp_remote_post( $endpoint, [ 'timeout' => 12, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'code' => $code ] ) ] );
+    if ( is_wp_error( $r ) || wp_remote_retrieve_response_code( $r ) !== 200 ) {
+        wp_send_json( [ 'ok' => false, 'msg' => 'Prüfung fehlgeschlagen' ] );
+    }
+    $d = json_decode( wp_remote_retrieve_body( $r ), true );
+    if ( empty( $d['gueltig'] ) ) {
+        $grund = ( $d['grund'] ?? '' ) === 'nur_laden' ? 'Dieser Gutschein ist nur im Laden einlösbar.' : 'Gutschein nicht gefunden oder bereits eingelöst.';
+        wp_send_json( [ 'ok' => false, 'msg' => $grund ] );
+    }
+    WC()->session->set( 'bschi_gs_redeem', [ 'code' => $code, 'betrag' => (float) $d['betrag'] ] );
+    wp_send_json( [ 'ok' => true ] );
+}
+add_action( 'wp_ajax_bschi_gs_remove', 'bschi_gs_ajax_remove' );
+add_action( 'wp_ajax_nopriv_bschi_gs_remove', 'bschi_gs_ajax_remove' );
+function bschi_gs_ajax_remove() {
+    if ( WC()->session ) WC()->session->__unset( 'bschi_gs_redeem' );
+    wp_send_json( [ 'ok' => true ] );
+}
+
+// 3) Guthaben als negative Gebühr auf den Warenkorb (min(Guthaben, Zwischensumme))
+add_action( 'woocommerce_cart_calculate_fees', 'bschi_gs_apply_fee', 20 );
+function bschi_gs_apply_fee( $cart ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) || ! WC()->session ) return;
+    $a = WC()->session->get( 'bschi_gs_redeem' );
+    if ( ! is_array( $a ) || empty( $a['code'] ) ) return;
+    $subtotal = (float) $cart->get_subtotal() + (float) $cart->get_subtotal_tax();
+    $einsatz  = min( (float) $a['betrag'], $subtotal );
+    if ( $einsatz > 0.001 ) {
+        $cart->add_fee( 'Gutschein ' . $a['code'], -1 * round( $einsatz, 2 ), false );
+    }
+}
+
+// 4) Bei bezahlter Bestellung: Gutschein im Office einlösen (Split) – idempotent
+add_action( 'woocommerce_order_status_processing', 'bschi_gs_redeem_on_paid', 25 );
+add_action( 'woocommerce_order_status_completed', 'bschi_gs_redeem_on_paid', 25 );
+function bschi_gs_redeem_on_paid( $order_id ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) return;
+    $order = wc_get_order( $order_id );
+    if ( ! $order || $order->get_meta( '_bschi_gs_redeemed' ) ) return;
+    // eingesetzten Betrag aus der Gutschein-Gebühr der Bestellung lesen
+    $code = ''; $betrag = 0.0;
+    foreach ( $order->get_items( 'fee' ) as $fee ) {
+        if ( strpos( (string) $fee->get_name(), 'Gutschein ' ) === 0 ) {
+            $code = trim( str_replace( 'Gutschein ', '', $fee->get_name() ) );
+            $betrag = abs( (float) $fee->get_total() );
+            break;
+        }
+    }
+    if ( ! $code || $betrag <= 0 ) return;
+    $endpoint = bschi_hub_url( '/api/v1/shop/gutschein-einloesen' );
+    if ( ! $endpoint ) return;
+    $r = wp_remote_post( $endpoint, [ 'timeout' => 15, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'code' => $code, 'betrag' => $betrag ] ) ] );
+    if ( ! is_wp_error( $r ) && wp_remote_retrieve_response_code( $r ) === 200 ) {
+        $d = json_decode( wp_remote_retrieve_body( $r ), true );
+        $order->update_meta_data( '_bschi_gs_redeemed', gmdate( 'c' ) );
+        $note = 'Gutschein ' . $code . ' eingelöst: ' . wc_price( $betrag );
+        if ( ! empty( $d['rest_code'] ) ) $note .= '. Restguthaben ' . wc_price( (float) $d['rest'] ) . ' als neuer Gutschein ' . $d['rest_code'] . ' versendet.';
+        $order->add_order_note( $note );
+        $order->save();
+    } else {
+        $order->add_order_note( 'ACHTUNG: Gutschein ' . $code . ' (' . wc_price( $betrag ) . ') konnte im Office nicht eingelöst werden – bitte manuell prüfen.' );
+        $order->save();
+    }
+    if ( WC()->session ) WC()->session->__unset( 'bschi_gs_redeem' );
+}
