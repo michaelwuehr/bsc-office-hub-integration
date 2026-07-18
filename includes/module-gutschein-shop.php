@@ -73,17 +73,13 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
 
         <h3 style="margin:20px 0 8px">2. Wo soll der Gutschein gelten?</h3>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
-            <input type="radio" name="bschi_gs_typ" value="kombi" checked>
-            <b>Überall (empfohlen)</b><br><span style="font-size:13px;color:#666">Online <b>und</b> im Laden einlösbar – auch in Teilbeträgen. Der Restbetrag kommt als neuer Gutschein.</span>
+          <label class="bschi-gs-typ" style="flex:1;min-width:220px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
+            <input type="radio" name="bschi_gs_typ" value="online" checked>
+            <b>Online-Shop</b><br><span style="font-size:13px;color:#666">Einlösbar auf woidsiederei.de – Code zum Eingeben an der Kasse.</span>
           </label>
-          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
-            <input type="radio" name="bschi_gs_typ" value="online">
-            <b>Nur Online-Shop</b><br><span style="font-size:13px;color:#666">Einlösbar auf woidsiederei.de – Code zum Eingeben an der Kasse.</span>
-          </label>
-          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
+          <label class="bschi-gs-typ" style="flex:1;min-width:220px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
             <input type="radio" name="bschi_gs_typ" value="laden">
-            <b>Nur Laden</b><br><span style="font-size:13px;color:#666">Einlösbar in Theresienthal &amp; Schweinhütt – mit Barcode für die Kasse.</span>
+            <b>Laden</b><br><span style="font-size:13px;color:#666">Einlösbar in Theresienthal &amp; Schweinhütt – mit Barcode für die Kasse (auch in Teilbeträgen).</span>
           </label>
         </div>
 
@@ -158,10 +154,9 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
           .split('{{BETRAG}}').join(esc(betrag))
           .split('{{CODE_BLOCK}}').join('<span class="nur-code">Code nach Kauf</span>')
           .split('{{CODE_NR}}').join('folgt nach Kauf')
-          .split('{{TYP_LABEL}}').join(
-            typ === 'laden' ? 'Einl&ouml;sbar in unseren L&auml;den (Theresienthal &amp; Schweinh&uuml;tt)'
-            : typ === 'online' ? 'Einl&ouml;sbar im Online-Shop woidsiederei.de'
-            : '&Uuml;berall einl&ouml;sbar &ndash; online und in unseren L&auml;den');
+          .split('{{TYP_LABEL}}').join(typ === 'laden'
+            ? 'Einl&ouml;sbar in unseren L&auml;den (Theresienthal &amp; Schweinh&uuml;tt)'
+            : 'Einl&ouml;sbar im Online-Shop woidsiederei.de');
       }
       function renderPreview(){
         var d = designs.find(function(x){ return x.key === cfg.design; }) || designs[0];
@@ -243,7 +238,7 @@ add_action( 'template_redirect', function () {
         return;
     }
     $typ_in = (string) ( $_POST['bschi_gs_typ'] ?? '' );
-    $typ = in_array( $typ_in, [ 'online', 'laden', 'kombi' ], true ) ? $typ_in : 'kombi';
+    $typ = in_array( $typ_in, [ 'online', 'laden' ], true ) ? $typ_in : 'online';
     $daten = [
         'typ'        => $typ,
         'betrag'     => $betrag,
@@ -285,7 +280,7 @@ add_action( 'woocommerce_before_calculate_totals', function ( $cart ) {
 add_filter( 'woocommerce_get_item_data', function ( $rows, $item ) {
     if ( ! empty( $item['bschi_gutschein'] ) ) {
         $g = $item['bschi_gutschein'];
-        $rows[] = [ 'key' => 'Einsatzort', 'value' => $g['typ'] === 'laden' ? 'Laden (Theresienthal & Schweinhütt)' : ( $g['typ'] === 'kombi' ? 'Überall (online + Laden)' : 'Online-Shop' ) ];
+        $rows[] = [ 'key' => 'Einsatzort', 'value' => $g['typ'] === 'laden' ? 'Laden (Theresienthal & Schweinhütt)' : 'Online-Shop' ];
         if ( ! empty( $g['empfaenger'] ) ) {
             $rows[] = [ 'key' => 'Für', 'value' => esc_html( $g['empfaenger'] ) ];
         }
@@ -486,9 +481,10 @@ add_action( 'init', function () {
         return;
     }
     add_rewrite_endpoint( 'gutscheine', EP_ROOT | EP_PAGES );
-    if ( ! get_option( 'bschi_gs_rewrite_flushed' ) ) {
+    add_rewrite_endpoint( 'guthaben', EP_ROOT | EP_PAGES );
+    if ( get_option( 'bschi_gs_rewrite_flushed' ) !== '2' ) {
         flush_rewrite_rules();
-        update_option( 'bschi_gs_rewrite_flushed', 1 );
+        update_option( 'bschi_gs_rewrite_flushed', '2' );
     }
 } );
 
@@ -501,13 +497,66 @@ add_filter( 'woocommerce_account_menu_items', function ( $items ) {
     foreach ( $items as $k => $v ) {
         $neu[ $k ] = $v;
         if ( 'orders' === $k ) {
-            $neu['gutscheine'] = 'Gutscheine';
+            $neu['guthaben']    = 'Mein Guthaben';
+            $neu['gutscheine']  = 'Gutscheine';
         }
     }
-    if ( ! isset( $neu['gutscheine'] ) ) {
-        $neu['gutscheine'] = 'Gutscheine';
-    }
+    if ( ! isset( $neu['guthaben'] ) )   { $neu['guthaben'] = 'Mein Guthaben'; }
+    if ( ! isset( $neu['gutscheine'] ) ) { $neu['gutscheine'] = 'Gutscheine'; }
     return $neu;
+} );
+
+// ─── Mein Guthaben (Wallet-Kontostand + Historie) ────────────────────────────
+
+add_action( 'woocommerce_account_guthaben_endpoint', function () {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return;
+    }
+    $user  = wp_get_current_user();
+    $email = $user && $user->user_email ? $user->user_email : '';
+    if ( ! $email ) {
+        echo '<p>Keine E-Mail-Adresse am Konto hinterlegt.</p>';
+        return;
+    }
+    $endpoint = bschi_hub_url( '/api/v1/shop/wallet' );
+    $d = [ 'saldo' => 0, 'transaktionen' => [] ];
+    if ( $endpoint ) {
+        $resp = wp_remote_post( $endpoint, [
+            'timeout' => 12,
+            'headers' => bschi_hub_headers(),
+            'body'    => wp_json_encode( [ 'email' => $email ] ),
+        ] );
+        if ( ! is_wp_error( $resp ) && wp_remote_retrieve_response_code( $resp ) === 200 ) {
+            $d = json_decode( wp_remote_retrieve_body( $resp ), true ) ?: $d;
+        }
+    }
+    $saldo = (float) ( $d['saldo'] ?? 0 );
+    $txs   = is_array( $d['transaktionen'] ?? null ) ? $d['transaktionen'] : [];
+
+    echo '<div style="background:#5a6b52;color:#fff;border-radius:12px;padding:18px 20px;margin-bottom:18px">'
+       . '<div style="font-size:13px;opacity:.85">Dein aktuelles Guthaben</div>'
+       . '<div style="font-size:34px;font-weight:800">' . number_format( $saldo, 2, ',', '.' ) . ' €</div></div>';
+
+    // Aufladen / Umwandeln folgen in Phase 2/3 – Hinweis
+    echo '<p style="color:#777;font-size:13px">Guthaben aufladen und im Laden verwenden folgt in Kürze. '
+       . 'Dein Guthaben kannst du dann online direkt an der Kasse verrechnen.</p>';
+
+    if ( $txs ) {
+        echo '<h3 style="margin-top:20px">Buchungen</h3><table class="woocommerce-table shop_table" style="width:100%"><thead><tr>'
+           . '<th>Datum</th><th>Vorgang</th><th>Betrag</th><th>Saldo danach</th></tr></thead><tbody>';
+        foreach ( $txs as $t ) {
+            $b = (float) ( $t['betrag'] ?? 0 );
+            $farbe = $b >= 0 ? '#2e7d32' : '#b00';
+            echo '<tr><td>' . esc_html( implode( '.', array_reverse( explode( '-', substr( (string) ( $t['datum'] ?? '' ), 0, 10 ) ) ) ) )
+               . ' ' . esc_html( substr( (string) ( $t['datum'] ?? '' ), 11, 5 ) ) . '</td>'
+               . '<td>' . esc_html( $t['typ_txt'] ?? '' ) . ( ! empty( $t['referenz'] ) ? '<br><span style="font-size:11px;color:#777">' . esc_html( $t['referenz'] ) . '</span>' : '' ) . '</td>'
+               . '<td style="color:' . $farbe . ';font-weight:600">' . ( $b >= 0 ? '+' : '' ) . number_format( $b, 2, ',', '.' ) . ' €</td>'
+               . '<td>' . number_format( (float) ( $t['saldo_nach'] ?? 0 ), 2, ',', '.' ) . ' €</td></tr>';
+        }
+        echo '</tbody></table>';
+    } else {
+        echo '<p style="color:#777">Noch keine Guthaben-Buchungen.</p>';
+    }
 } );
 
 add_action( 'woocommerce_account_gutscheine_endpoint', function () {
