@@ -537,9 +537,37 @@ add_action( 'woocommerce_account_guthaben_endpoint', function () {
        . '<div style="font-size:13px;opacity:.85">Dein aktuelles Guthaben</div>'
        . '<div style="font-size:34px;font-weight:800">' . number_format( $saldo, 2, ',', '.' ) . ' €</div></div>';
 
-    // Aufladen / Umwandeln folgen in Phase 2/3 – Hinweis
-    echo '<p style="color:#777;font-size:13px">Guthaben aufladen und im Laden verwenden folgt in Kürze. '
-       . 'Dein Guthaben kannst du dann online direkt an der Kasse verrechnen.</p>';
+    // Aufladen-Button (P2)
+    $auflade_url = home_url( '/guthaben-aufladen/' );
+    echo '<p><a href="' . esc_url( $auflade_url ) . '" class="button" style="background:#5a6b52;color:#fff">Guthaben aufladen</a> '
+       . '<span style="color:#777;font-size:13px;margin-left:8px">Dein Guthaben wird an der Online-Kasse automatisch angeboten.</span></p>';
+
+    // In Laden-Gutschein umwandeln (P3)
+    if ( $saldo >= 5 ) {
+        echo '<div style="border:1px solid #ddd;border-radius:10px;padding:14px;margin:14px 0">'
+           . '<div style="font-weight:600;margin-bottom:6px">Im Laden verwenden?</div>'
+           . '<div style="font-size:13px;color:#666;margin-bottom:8px">Wandle einen Teil deines Guthabens in einen Laden-Gutschein um (Barcode fürs Kassieren in Theresienthal &amp; Schweinhütt).</div>'
+           . '<input type="number" id="bschi-wl-conv" min="5" max="' . esc_attr( floor( $saldo ) ) . '" step="0.5" value="' . esc_attr( min( 25, floor( $saldo ) ) ) . '" style="width:110px;padding:9px;border:2px solid #ccc;border-radius:10px"> € '
+           . '<button type="button" id="bschi-wl-conv-btn" class="button">In Laden-Gutschein umwandeln</button>'
+           . '<div id="bschi-wl-conv-msg" style="margin-top:8px;font-size:13px"></div></div>';
+        ?>
+        <script>
+        document.getElementById('bschi-wl-conv-btn').addEventListener('click',function(){
+          var btn=this,msg=document.getElementById('bschi-wl-conv-msg');
+          var b=parseFloat((document.getElementById('bschi-wl-conv').value||'0').replace(',','.'));
+          if(!(b>=5)){msg.textContent='Betrag ab 5 €';return;}
+          btn.disabled=true;msg.textContent='Erstelle Gutschein …';
+          var fd=new FormData();fd.append('action','bschi_wl_convert');fd.append('betrag',b);
+          fd.append('nonce','<?php echo esc_js( wp_create_nonce( 'bschi_wl_convert' ) ); ?>');
+          fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>',{method:'POST',body:fd,credentials:'same-origin'})
+            .then(function(r){return r.json();}).then(function(d){
+              if(d&&d.ok){msg.innerHTML='Laden-Gutschein erstellt: <b>'+d.code+'</b> ('+d.betrag+' €). Kommt auch per E-Mail. Neues Guthaben: '+d.neuer_saldo+' €. <a href="">Seite neu laden</a>';}
+              else{msg.textContent=(d&&d.msg)||'Fehlgeschlagen';btn.disabled=false;}
+            }).catch(function(){msg.textContent='Fehler';btn.disabled=false;});
+        });
+        </script>
+        <?php
+    }
 
     if ( $txs ) {
         echo '<h3 style="margin-top:20px">Buchungen</h3><table class="woocommerce-table shop_table" style="width:100%"><thead><tr>'
@@ -816,3 +844,247 @@ function bschi_gs_redeem_on_paid( $order_id ) {
     }
     if ( WC()->session ) WC()->session->__unset( 'bschi_gs_redeem' );
 }
+
+// ═══════════════ WALLET: Aufladen + Mit Guthaben zahlen (P2) ═══════════════════
+
+// Verstecktes WC-Produkt fürs Aufladen (einmalig)
+function bschi_wallet_product_id(): int {
+    $pid = (int) get_option( 'bschi_wallet_product_id', 0 );
+    if ( $pid && get_post_status( $pid ) === 'publish' ) {
+        return $pid;
+    }
+    if ( ! function_exists( 'wc_get_product' ) ) {
+        return 0;
+    }
+    $p = new WC_Product_Simple();
+    $p->set_name( 'Guthaben aufladen' );
+    $p->set_status( 'publish' );
+    $p->set_catalog_visibility( 'hidden' );
+    $p->set_virtual( true );
+    $p->set_regular_price( '25' );
+    $p->set_tax_status( 'none' );   // Guthaben-Aufladung ohne USt (Besteuerung bei Einlösung)
+    $p->set_sold_individually( true );
+    $pid = $p->save();
+    update_option( 'bschi_wallet_product_id', $pid );
+    return (int) $pid;
+}
+
+// Shortcode: Aufladen [bsc_guthaben_aufladen]
+add_shortcode( 'bsc_guthaben_aufladen', function (): string {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) || ! function_exists( 'WC' ) ) {
+        return '';
+    }
+    if ( ! is_user_logged_in() ) {
+        return '<p>Bitte <a href="' . esc_url( wc_get_page_permalink( 'myaccount' ) ) . '">melde dich an</a>, um dein Guthaben aufzuladen.</p>';
+    }
+    $pid = bschi_wallet_product_id();
+    if ( ! $pid ) { return ''; }
+    ob_start(); ?>
+    <div style="max-width:520px">
+      <form method="post">
+        <?php wp_nonce_field( 'bschi_wl_add', 'bschi_wl_nonce' ); ?>
+        <input type="hidden" name="bschi_wl_add" value="1">
+        <h3 style="margin:0 0 10px">Guthaben aufladen</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <?php foreach ( [ 10, 25, 50, 100 ] as $b ) : ?>
+            <button type="button" class="bschi-wl-b" data-b="<?php echo esc_attr( $b ); ?>"
+              style="padding:10px 18px;border:2px solid #ccc;border-radius:10px;background:#fff;cursor:pointer;font-weight:700"><?php echo esc_html( $b ); ?> €</button>
+          <?php endforeach; ?>
+          <span style="color:#666">oder</span>
+          <input type="number" name="bschi_wl_betrag" id="bschi-wl-betrag" value="25" min="5" max="500" step="0.5" required
+            style="width:110px;padding:9px;border:2px solid #ccc;border-radius:10px"> €
+        </div>
+        <button type="submit" style="padding:13px 26px;border:0;border-radius:10px;background:#5a6b52;color:#fff;font-weight:700;cursor:pointer">Aufladen &amp; bezahlen</button>
+        <p style="font-size:12px;color:#777;margin-top:8px">Nach Zahlung wird dein Guthaben sofort gutgeschrieben.</p>
+      </form>
+    </div>
+    <script>
+    document.querySelectorAll('.bschi-wl-b').forEach(function(b){b.addEventListener('click',function(){document.getElementById('bschi-wl-betrag').value=b.dataset.b;});});
+    </script>
+    <?php
+    return (string) ob_get_clean();
+} );
+
+// Aufladen -> Warenkorb (eigener Preis, an den Kunden gebunden)
+add_action( 'template_redirect', function () {
+    if ( empty( $_POST['bschi_wl_add'] ) || ! bschi_feature_enabled( 'gutschein_shop' ) || ! function_exists( 'WC' ) ) {
+        return;
+    }
+    if ( ! isset( $_POST['bschi_wl_nonce'] ) || ! wp_verify_nonce( $_POST['bschi_wl_nonce'], 'bschi_wl_add' ) || ! is_user_logged_in() ) {
+        return;
+    }
+    $betrag = round( (float) str_replace( ',', '.', (string) ( $_POST['bschi_wl_betrag'] ?? 0 ) ), 2 );
+    if ( $betrag < 5 || $betrag > 500 ) {
+        wc_add_notice( 'Aufladebetrag zwischen 5 und 500 € wählen.', 'error' );
+        return;
+    }
+    $pid = bschi_wallet_product_id();
+    if ( $pid && WC()->cart ) {
+        WC()->cart->add_to_cart( $pid, 1, 0, [], [ 'bschi_wallet_topup' => $betrag, 'unique_key' => md5( 'wl' . $betrag . microtime() ) ] );
+        wp_safe_redirect( wc_get_cart_url() );
+        exit;
+    }
+} );
+
+// Aufladebetrag = Warenkorbpreis + Anzeige
+add_action( 'woocommerce_before_calculate_totals', function ( $cart ) {
+    foreach ( $cart->get_cart() as $item ) {
+        if ( ! empty( $item['bschi_wallet_topup'] ) ) {
+            $item['data']->set_price( (float) $item['bschi_wallet_topup'] );
+        }
+    }
+}, 20 );
+add_filter( 'woocommerce_get_item_data', function ( $rows, $item ) {
+    if ( ! empty( $item['bschi_wallet_topup'] ) ) {
+        $rows[] = [ 'key' => 'Guthaben-Aufladung', 'value' => wc_price( (float) $item['bschi_wallet_topup'] ) ];
+    }
+    return $rows;
+}, 10, 2 );
+add_action( 'woocommerce_checkout_create_order_line_item', function ( $li, $key, $values ) {
+    if ( ! empty( $values['bschi_wallet_topup'] ) ) {
+        $li->add_meta_data( '_bschi_wallet_topup', (float) $values['bschi_wallet_topup'], true );
+    }
+}, 10, 3 );
+
+// Bezahlte Aufladung -> Office gutschreiben (idempotent)
+add_action( 'woocommerce_order_status_processing', 'bschi_wallet_topup_paid', 30 );
+add_action( 'woocommerce_order_status_completed', 'bschi_wallet_topup_paid', 30 );
+function bschi_wallet_topup_paid( $order_id ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) { return; }
+    $order = wc_get_order( $order_id );
+    if ( ! $order || $order->get_meta( '_bschi_wl_topped' ) ) { return; }
+    $summe = 0.0;
+    foreach ( $order->get_items() as $item ) {
+        $b = (float) $item->get_meta( '_bschi_wallet_topup' );
+        if ( $b > 0 ) { $summe += $b; }
+    }
+    if ( $summe <= 0 ) { return; }
+    $email = $order->get_billing_email();
+    $endpoint = bschi_hub_url( '/api/v1/shop/wallet-aufladen' );
+    if ( ! $email || ! $endpoint ) { return; }
+    $r = wp_remote_post( $endpoint, [ 'timeout' => 15, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'email' => $email, 'betrag' => $summe,
+            'name' => trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() ),
+            'referenz' => 'Aufladung Bestellung ' . $order->get_order_number() ] ) ] );
+    if ( ! is_wp_error( $r ) && wp_remote_retrieve_response_code( $r ) === 200 ) {
+        $order->update_meta_data( '_bschi_wl_topped', gmdate( 'c' ) );
+        $order->add_order_note( 'Guthaben aufgeladen: ' . wc_price( $summe ) );
+        $order->save();
+    } else {
+        $order->add_order_note( 'ACHTUNG: Guthaben-Aufladung (' . wc_price( $summe ) . ') im Office fehlgeschlagen – bitte prüfen.' );
+        $order->save();
+    }
+}
+
+// ── Mit Guthaben zahlen (Checkbox an der Kasse, negative Gebühr) ─────────────
+add_action( 'woocommerce_review_order_before_payment', 'bschi_wallet_pay_field' );
+function bschi_wallet_pay_field() {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) || ! is_user_logged_in() || ! WC()->cart ) { return; }
+    // Aufladung im Warenkorb? Dann kein Bezahlen mit Guthaben (Zirkel vermeiden)
+    foreach ( WC()->cart->get_cart() as $it ) { if ( ! empty( $it['bschi_wallet_topup'] ) ) { return; } }
+    $email = wp_get_current_user()->user_email;
+    $cache = get_transient( 'bschi_wl_saldo_' . md5( strtolower( $email ) ) );
+    if ( false === $cache ) {
+        $cache = 0.0;
+        $ep = bschi_hub_url( '/api/v1/shop/wallet-saldo' );
+        if ( $ep ) {
+            $resp = wp_remote_post( $ep, [ 'timeout' => 10, 'headers' => bschi_hub_headers(), 'body' => wp_json_encode( [ 'email' => $email ] ) ] );
+            if ( ! is_wp_error( $resp ) && wp_remote_retrieve_response_code( $resp ) === 200 ) {
+                $cache = (float) ( json_decode( wp_remote_retrieve_body( $resp ), true )['saldo'] ?? 0 );
+            }
+        }
+        set_transient( 'bschi_wl_saldo_' . md5( strtolower( $email ) ), $cache, 60 );
+    }
+    if ( $cache <= 0 ) { return; }
+    $checked = WC()->session && WC()->session->get( 'bschi_wl_use' ) ? 'checked' : '';
+    echo '<tr class="bschi-wl-pay"><th>Guthaben</th><td>'
+       . '<label><input type="checkbox" id="bschi-wl-use" ' . $checked . '> Mit Guthaben zahlen ('
+       . wc_price( $cache ) . ' verfügbar)</label></td></tr>';
+    ?>
+    <script>
+    (function(){var c=document.getElementById('bschi-wl-use');if(!c)return;c.addEventListener('change',function(){
+      var fd=new FormData();fd.append('action','bschi_wl_toggle');fd.append('use',c.checked?'1':'0');
+      fd.append('nonce','<?php echo esc_js( wp_create_nonce( 'bschi_wl_toggle' ) ); ?>');
+      fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>',{method:'POST',body:fd,credentials:'same-origin'}).then(function(){
+        if(window.jQuery)jQuery(document.body).trigger('update_checkout');});});})();
+    </script>
+    <?php
+}
+add_action( 'wp_ajax_bschi_wl_toggle', function () {
+    if ( wp_verify_nonce( $_POST['nonce'] ?? '', 'bschi_wl_toggle' ) && WC()->session ) {
+        WC()->session->set( 'bschi_wl_use', ! empty( $_POST['use'] ) ? 1 : 0 );
+    }
+    wp_send_json_success();
+} );
+
+// Guthaben als negative Gebühr (min(Saldo, Summe))
+add_action( 'woocommerce_cart_calculate_fees', function ( $cart ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) || ! is_user_logged_in() || ! WC()->session ) { return; }
+    if ( ! WC()->session->get( 'bschi_wl_use' ) ) { return; }
+    foreach ( $cart->get_cart() as $it ) { if ( ! empty( $it['bschi_wallet_topup'] ) ) { return; } }
+    $email = wp_get_current_user()->user_email;
+    $ep = bschi_hub_url( '/api/v1/shop/wallet-saldo' );
+    $saldo = 0.0;
+    if ( $ep ) {
+        $resp = wp_remote_post( $ep, [ 'timeout' => 10, 'headers' => bschi_hub_headers(), 'body' => wp_json_encode( [ 'email' => $email ] ) ] );
+        if ( ! is_wp_error( $resp ) && wp_remote_retrieve_response_code( $resp ) === 200 ) {
+            $saldo = (float) ( json_decode( wp_remote_retrieve_body( $resp ), true )['saldo'] ?? 0 );
+        }
+    }
+    $summe = (float) $cart->get_subtotal() + (float) $cart->get_subtotal_tax();
+    $einsatz = min( $saldo, $summe );
+    if ( $einsatz > 0.001 ) { $cart->add_fee( 'Guthaben', -1 * round( $einsatz, 2 ), false ); }
+}, 25 );
+
+// Bezahlte Bestellung mit Guthaben-Einsatz -> Office belasten (idempotent)
+add_action( 'woocommerce_order_status_processing', 'bschi_wallet_pay_on_paid', 35 );
+add_action( 'woocommerce_order_status_completed', 'bschi_wallet_pay_on_paid', 35 );
+function bschi_wallet_pay_on_paid( $order_id ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) { return; }
+    $order = wc_get_order( $order_id );
+    if ( ! $order || $order->get_meta( '_bschi_wl_charged' ) ) { return; }
+    $betrag = 0.0;
+    foreach ( $order->get_items( 'fee' ) as $fee ) {
+        if ( 'Guthaben' === $fee->get_name() ) { $betrag = abs( (float) $fee->get_total() ); break; }
+    }
+    if ( $betrag <= 0 ) { return; }
+    $email = $order->get_billing_email();
+    $ep = bschi_hub_url( '/api/v1/shop/wallet-zahlen' );
+    if ( ! $email || ! $ep ) { return; }
+    $r = wp_remote_post( $ep, [ 'timeout' => 15, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'email' => $email, 'betrag' => $betrag, 'referenz' => 'Zahlung Bestellung ' . $order->get_order_number() ] ) ] );
+    if ( ! is_wp_error( $r ) && wp_remote_retrieve_response_code( $r ) === 200 ) {
+        $order->update_meta_data( '_bschi_wl_charged', gmdate( 'c' ) );
+        $order->add_order_note( 'Mit Guthaben bezahlt: ' . wc_price( $betrag ) );
+        $order->save();
+        if ( WC()->session ) { WC()->session->set( 'bschi_wl_use', 0 ); }
+    } else {
+        $order->add_order_note( 'ACHTUNG: Guthaben-Belastung (' . wc_price( $betrag ) . ') im Office fehlgeschlagen – bitte prüfen.' );
+        $order->save();
+    }
+}
+
+// AJAX: Guthaben in Laden-Gutschein umwandeln (P3)
+add_action( 'wp_ajax_bschi_wl_convert', function () {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) || ! is_user_logged_in()
+         || ! wp_verify_nonce( $_POST['nonce'] ?? '', 'bschi_wl_convert' ) ) {
+        wp_send_json( [ 'ok' => false, 'msg' => 'Sitzung abgelaufen' ] );
+    }
+    $betrag = round( (float) str_replace( ',', '.', (string) ( $_POST['betrag'] ?? 0 ) ), 2 );
+    if ( $betrag < 5 ) { wp_send_json( [ 'ok' => false, 'msg' => 'Betrag ab 5 €' ] ); }
+    $user  = wp_get_current_user();
+    $ep = bschi_hub_url( '/api/v1/shop/wallet-umwandeln' );
+    if ( ! $ep ) { wp_send_json( [ 'ok' => false, 'msg' => 'nicht verfügbar' ] ); }
+    $r = wp_remote_post( $ep, [ 'timeout' => 20, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'email' => $user->user_email, 'betrag' => $betrag,
+            'name' => trim( $user->first_name . ' ' . $user->last_name ) ] ) ] );
+    if ( is_wp_error( $r ) ) { wp_send_json( [ 'ok' => false, 'msg' => 'Verbindungsfehler' ] ); }
+    $code = wp_remote_retrieve_response_code( $r );
+    $d = json_decode( wp_remote_retrieve_body( $r ), true );
+    if ( 200 === $code && ! empty( $d['ok'] ) ) {
+        delete_transient( 'bschi_wl_saldo_' . md5( strtolower( $user->user_email ) ) );
+        wp_send_json( [ 'ok' => true, 'code' => $d['code'], 'betrag' => number_format( (float) $d['betrag'], 2, ',', '.' ),
+                        'neuer_saldo' => number_format( (float) ( $d['neuer_saldo'] ?? 0 ), 2, ',', '.' ) ] );
+    }
+    wp_send_json( [ 'ok' => false, 'msg' => $d['detail'] ?? 'Umwandlung fehlgeschlagen' ] );
+} );
