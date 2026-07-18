@@ -40,16 +40,16 @@ add_filter( 'woocommerce_account_menu_items', function ( array $items ): array {
     foreach ( $items as $key => $label ) {
         $new[ $key ] = $label;
         if ( $key === 'orders' ) {
-            $new[ BSCHI_DOCS_ENDPOINT ] = 'Meine Dokumente';
+            $new[ BSCHI_DOCS_ENDPOINT ] = 'Dokumente';
         }
     }
     if ( ! isset( $new[ BSCHI_DOCS_ENDPOINT ] ) ) {
-        $new[ BSCHI_DOCS_ENDPOINT ] = 'Meine Dokumente';
+        $new[ BSCHI_DOCS_ENDPOINT ] = 'Dokumente';
     }
     return $new;
 } );
 
-add_filter( 'woocommerce_endpoint_' . BSCHI_DOCS_ENDPOINT . '_title', fn() => 'Meine Dokumente' );
+add_filter( 'woocommerce_endpoint_' . BSCHI_DOCS_ENDPOINT . '_title', fn() => 'Dokumente' );
 
 // ─── Inhalt des Endpoints ────────────────────────────────────────────────────
 

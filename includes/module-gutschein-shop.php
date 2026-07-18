@@ -484,16 +484,50 @@ add_filter( 'woocommerce_account_menu_items', function ( $items ) {
     foreach ( $items as $k => $v ) {
         $neu[ $k ] = $v;
         if ( 'orders' === $k ) {
-            $neu['guthaben']    = 'Mein Guthaben';
+            $neu['guthaben']    = 'Guthaben';
             $neu['gutscheine']  = 'Gutscheine';
         }
     }
-    if ( ! isset( $neu['guthaben'] ) )   { $neu['guthaben'] = 'Mein Guthaben'; }
+    if ( ! isset( $neu['guthaben'] ) )   { $neu['guthaben'] = 'Guthaben'; }
     if ( ! isset( $neu['gutscheine'] ) ) { $neu['gutscheine'] = 'Gutscheine'; }
     return $neu;
 } );
 
-// ─── Mein Guthaben (Wallet-Kontostand + Historie) ────────────────────────────
+// ─── Dashboard: aktuelles Guthaben als Kachel ────────────────────────────────
+
+add_action( 'woocommerce_account_dashboard', function () {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return;
+    }
+    $user = wp_get_current_user();
+    if ( ! $user || ! $user->user_email ) {
+        return;
+    }
+    $cache_key = 'bschi_wl_saldo_' . md5( strtolower( $user->user_email ) );
+    $saldo = get_transient( $cache_key );
+    if ( false === $saldo ) {
+        $saldo = 0.0;
+        $endpoint = bschi_hub_url( '/api/v1/shop/wallet' );
+        if ( $endpoint ) {
+            $resp = wp_remote_post( $endpoint, [
+                'timeout' => 8,
+                'headers' => bschi_hub_headers(),
+                'body'    => wp_json_encode( [ 'email' => $user->user_email ] ),
+            ] );
+            if ( ! is_wp_error( $resp ) && wp_remote_retrieve_response_code( $resp ) === 200 ) {
+                $d = json_decode( wp_remote_retrieve_body( $resp ), true );
+                $saldo = (float) ( $d['saldo'] ?? 0 );
+            }
+        }
+        set_transient( $cache_key, $saldo, 5 * MINUTE_IN_SECONDS );
+    }
+    echo '<div style="background:#5a6b52;color:#fff;border-radius:12px;padding:14px 18px;margin:14px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
+       . '<div><div style="font-size:13px;opacity:.85">Dein verfügbares Guthaben</div>'
+       . '<div style="font-size:26px;font-weight:800">' . number_format( (float) $saldo, 2, ',', '.' ) . ' €</div></div>'
+       . '<a href="' . esc_url( wc_get_account_endpoint_url( 'guthaben' ) ) . '" class="button" style="background:#fff;color:#5a6b52;font-weight:700">Zum Guthaben</a></div>';
+} );
+
+// ─── Guthaben (Wallet-Kontostand + Historie) ─────────────────────────────────
 
 add_action( 'woocommerce_account_guthaben_endpoint', function () {
     if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
