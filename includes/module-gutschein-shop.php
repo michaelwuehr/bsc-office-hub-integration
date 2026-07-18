@@ -2,7 +2,7 @@
 /**
  * Modul: Geschenkgutschein-Konfigurator (Shortcode [bsc_gutschein_shop]).
  *
- * Kunde wählt Design (Vorlagen vom Office Hub), Einsatzort (Online-Shop oder Laden),
+ * Kunde wählt Design (Vorlagen vom Office Hub) – alle Gutscheine sind Kombi (Laden + Online),
  * Betrag (Festbeträge + frei 5-250 €) und Grußtext – Live-Vorschau im iframe, dann
  * normaler WooCommerce-Kauf über ein verstecktes virtuelles Gutschein-Produkt.
  * Nach Zahlungseingang meldet das Plugin die Bestellung an den Office Hub
@@ -71,23 +71,11 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
         <h3 style="margin:14px 0 8px">1. Design wählen</h3>
         <div id="bschi-gs-gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
 
-        <h3 style="margin:20px 0 8px">2. Wo soll der Gutschein gelten?</h3>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
-            <input type="radio" name="bschi_gs_typ" value="kombi" checked>
-            <b>Überall (empfohlen)</b><br><span style="font-size:13px;color:#666">Im Laden <b>und</b> online einlösbar – mit Barcode für die Kasse, Code fürs Online-Kassenfeld.</span>
-          </label>
-          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
-            <input type="radio" name="bschi_gs_typ" value="online">
-            <b>Nur Online-Shop</b><br><span style="font-size:13px;color:#666">Einlösbar auf woidsiederei.de – Code zum Eingeben an der Kasse.</span>
-          </label>
-          <label class="bschi-gs-typ" style="flex:1;min-width:200px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
-            <input type="radio" name="bschi_gs_typ" value="laden">
-            <b>Nur Laden</b><br><span style="font-size:13px;color:#666">Einlösbar in Theresienthal &amp; Schweinhütt – mit Barcode für die Kasse.</span>
-          </label>
-        </div>
+        <p style="margin:6px 0 0;font-size:13.5px;color:#666">Jeder Gutschein ist <b>überall einlösbar</b> –
+          im Laden (Theresienthal &amp; Schweinhütt, mit Barcode für die Kasse) und im Online-Shop
+          (Code fürs Kassenfeld).</p>
 
-        <h3 style="margin:20px 0 8px">3. Betrag</h3>
+        <h3 style="margin:20px 0 8px">2. Betrag</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <?php foreach ( $betraege as $b ) : ?>
             <button type="button" class="bschi-gs-betrag" data-betrag="<?php echo esc_attr( $b ); ?>"
@@ -99,7 +87,7 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
             style="width:110px;padding:9px;border:2px solid #ccc;border-radius:10px"> €
         </div>
 
-        <h3 style="margin:20px 0 8px">4. Persönlich machen (optional)</h3>
+        <h3 style="margin:20px 0 8px">3. Persönlich machen (optional)</h3>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <input type="text" name="bschi_gs_empfaenger" id="bschi-gs-empfaenger" maxlength="60" placeholder="Für wen? (Name)"
             style="padding:10px;border:2px solid #ccc;border-radius:10px">
@@ -109,7 +97,7 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
         <textarea name="bschi_gs_gruss" id="bschi-gs-gruss" maxlength="300" rows="3" placeholder="Dein Grußtext …"
           style="width:100%;margin-top:10px;padding:10px;border:2px solid #ccc;border-radius:10px"></textarea>
 
-        <h3 style="margin:20px 0 8px">5. Zustellung</h3>
+        <h3 style="margin:20px 0 8px">4. Zustellung</h3>
         <div style="display:flex;flex-direction:column;gap:8px">
           <label style="cursor:pointer"><input type="radio" name="bschi_gs_zustellung" value="selbst" checked>
             An mich – ich verschenke den Gutschein selbst (PDF per E-Mail an meine Adresse)</label>
@@ -126,8 +114,8 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
         </div>
 
         <h3 style="margin:20px 0 8px">Vorschau</h3>
-        <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;background:#f7f5f1">
-          <iframe id="bschi-gs-preview" sandbox="" style="width:100%;height:430px;border:0" title="Gutschein-Vorschau"></iframe>
+        <div id="bschi-gs-preview-wrap" style="max-width:460px;margin:0 auto;border:1px solid #ddd;border-radius:10px;overflow:hidden;background:#f7f5f1;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+          <iframe id="bschi-gs-preview" sandbox="" scrolling="no" style="display:block;width:100%;border:0;overflow:hidden" title="Gutschein-Vorschau"></iframe>
         </div>
 
         <button type="submit" style="margin-top:16px;padding:14px 28px;border:0;border-radius:10px;background:#5a6b52;color:#fff;font-size:16px;font-weight:700;cursor:pointer;min-height:48px">
@@ -147,7 +135,6 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
       function esc(s){ var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
       function previewHtml(d){
         var betrag = (document.getElementById('bschi-gs-betrag').value || '25').replace('.', ',');
-        var typ = document.querySelector('input[name=bschi_gs_typ]:checked').value;
         var emp = document.getElementById('bschi-gs-empfaenger').value.trim();
         var abs = document.getElementById('bschi-gs-absender').value.trim();
         var gruss = document.getElementById('bschi-gs-gruss').value.trim();
@@ -158,18 +145,24 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
           .split('{{BETRAG}}').join(esc(betrag))
           .split('{{CODE_BLOCK}}').join('<span class="nur-code">Code nach Kauf</span>')
           .split('{{CODE_NR}}').join('folgt nach Kauf')
-          .split('{{TYP_LABEL}}').join(
-            typ === 'laden' ? 'Einl&ouml;sbar in unseren L&auml;den (Theresienthal &amp; Schweinh&uuml;tt)'
-            : typ === 'online' ? 'Einl&ouml;sbar im Online-Shop woidsiederei.de'
-            : '&Uuml;berall einl&ouml;sbar &ndash; im Laden und online');
+          .split('{{TYP_LABEL}}').join('&Uuml;berall einl&ouml;sbar &ndash; im Laden und online');
       }
+      // A4 = 210x297mm = 793.7x1122.5 CSS-px. Das Blatt wird exakt auf die
+      // Rahmenbreite skaliert -> volle Seite sichtbar, nichts abgeschnitten, kein Scroll.
       function renderPreview(){
         var d = designs.find(function(x){ return x.key === cfg.design; }) || designs[0];
         var f = document.getElementById('bschi-gs-preview');
-        // A4-Seite auf iframe-Breite skalieren
+        var w = document.getElementById('bschi-gs-preview-wrap').clientWidth || 460;
+        var scale = w / 793.7;
+        f.style.height = Math.round(1122.5 * scale) + 'px';
         f.srcdoc = previewHtml(d).replace('</style>',
-          '.blatt{transform-origin:top left;transform:scale(0.52);width:210mm;height:230mm}</style>');
+          'html,body{margin:0;padding:0;overflow:hidden}'
+          + '.blatt{transform-origin:top left;transform:scale(' + scale.toFixed(4) + ');'
+          + 'width:210mm;height:297mm;margin:0}</style>');
       }
+      var _rsz; window.addEventListener('resize', function(){
+        clearTimeout(_rsz); _rsz = setTimeout(renderPreview, 150);
+      });
       function renderGallery(){
         var g = document.getElementById('bschi-gs-gallery');
         g.innerHTML = '';
@@ -204,14 +197,6 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
       ['bschi-gs-betrag','bschi-gs-empfaenger','bschi-gs-absender','bschi-gs-gruss'].forEach(function(id){
         document.getElementById(id).addEventListener('input', renderPreview);
       });
-      document.querySelectorAll('input[name=bschi_gs_typ]').forEach(function(r){
-        r.addEventListener('change', function(){
-          document.querySelectorAll('.bschi-gs-typ').forEach(function(l){
-            l.style.borderColor = l.querySelector('input').checked ? '#5a6b52' : '#ccc';
-          });
-          renderPreview();
-        });
-      });
       document.querySelectorAll('input[name=bschi_gs_zustellung]').forEach(function(r){
         r.addEventListener('change', function(){
           var box = document.getElementById('bschi-gs-direkt');
@@ -220,7 +205,6 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
           document.getElementById('bschi-gs-empf-email').required = an;
         });
       });
-      document.querySelector('.bschi-gs-typ input').dispatchEvent(new Event('change'));
       renderGallery(); renderPreview();
     })();
     </script>
@@ -242,10 +226,8 @@ add_action( 'template_redirect', function () {
         wc_add_notice( 'Bitte einen Gutschein-Betrag zwischen 5 und 250 € wählen.', 'error' );
         return;
     }
-    $typ_in = (string) ( $_POST['bschi_gs_typ'] ?? '' );
-    $typ = in_array( $typ_in, [ 'online', 'laden', 'kombi' ], true ) ? $typ_in : 'kombi';
     $daten = [
-        'typ'        => $typ,
+        'typ'        => 'kombi', // Nur noch Kombi-Gutscheine (ueberall einloesbar)
         'betrag'     => $betrag,
         'design'     => sanitize_key( $_POST['bschi_gs_design'] ?? 'klassik' ),
         'empfaenger' => sanitize_text_field( wp_unslash( $_POST['bschi_gs_empfaenger'] ?? '' ) ),
@@ -302,7 +284,7 @@ add_action( 'woocommerce_checkout_create_order_line_item', function ( $line_item
     if ( ! empty( $values['bschi_gutschein'] ) ) {
         $g = $values['bschi_gutschein'];
         $line_item->add_meta_data( '_bschi_gutschein', wp_json_encode( $g ), true );
-        $line_item->add_meta_data( 'Einsatzort', $g['typ'] === 'laden' ? 'Laden' : 'Online-Shop', true );
+        $line_item->add_meta_data( 'Einsatzort', $g['typ'] === 'laden' ? 'Laden' : ( $g['typ'] === 'kombi' ? 'Überall (Laden + Online)' : 'Online-Shop' ), true );
         if ( ! empty( $g['empfaenger'] ) ) {
             $line_item->add_meta_data( 'Für', $g['empfaenger'], true );
         }
@@ -626,11 +608,33 @@ add_action( 'woocommerce_account_gutscheine_endpoint', function () {
     }
     $ddmmyy = function ( $d ) { return esc_html( implode( '.', array_reverse( explode( '-', (string) $d ) ) ) ); };
 
-    // Guthaben-Übersicht
+    // Übersicht: Gesamtwert (Restguthaben aller aktiven Gutscheine) + Zähler inkl. teileingelöst
+    $teil_n = (int) ( $daten['anzahl_teileingeloest'] ?? 0 );
+    if ( ! $teil_n ) {
+        foreach ( $aktive as $g ) {
+            if ( ! empty( $g['teileingeloest'] ) ) { $teil_n++; }
+        }
+    }
+    $zaehler = count( $aktive ) . ' aktiv' . ( $teil_n ? ' (davon ' . $teil_n . ' teileingelöst)' : '' )
+             . '<br>' . count( $eingeloest ) . ' vollständig eingelöst';
     echo '<div style="background:#5a6b52;color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
-       . '<div><div style="font-size:13px;opacity:.85">Dein verfügbares Guthaben</div>'
+       . '<div><div style="font-size:13px;opacity:.85">Gesamtwert deiner Gutscheine</div>'
        . '<div style="font-size:30px;font-weight:800">' . number_format( (float) ( $daten['guthaben'] ?? 0 ), 2, ',', '.' ) . ' €</div></div>'
-       . '<div style="font-size:13px;opacity:.9;text-align:right">' . count( $aktive ) . ' aktive<br>' . count( $eingeloest ) . ' eingelöste Gutscheine</div></div>';
+       . '<div style="font-size:13px;opacity:.9;text-align:right">' . $zaehler . '</div></div>';
+
+    $hist_html = function ( $g ) {
+        $hist = is_array( $g['einloesungen'] ?? null ) ? $g['einloesungen'] : [];
+        if ( ! $hist ) {
+            return '';
+        }
+        $out = '';
+        foreach ( $hist as $h ) {
+            $out .= '<br><span style="font-size:11px;color:#777">− '
+                  . number_format( (float) ( $h['betrag'] ?? 0 ), 2, ',', '.' ) . ' € am '
+                  . esc_html( $h['am_txt'] ?? '' ) . ' Uhr · ' . esc_html( $h['ort'] ?? '' ) . '</span>';
+        }
+        return $out;
+    };
 
     // Aktive Gutscheine
     if ( $aktive ) {
@@ -638,13 +642,13 @@ add_action( 'woocommerce_account_gutscheine_endpoint', function () {
            . '<th>Datum</th><th>Art</th><th>Guthaben</th><th>Code</th><th>PDF</th></tr></thead><tbody>';
         foreach ( $aktive as $g ) {
             $verf = (float) ( $g['verfuegbar'] ?? $g['betrag'] );
-            $teil = ! empty( $g['eingeloest_extern'] ) ? '<br><span style="font-size:11px;color:#777">von ' . number_format( (float) $g['betrag'], 2, ',', '.' ) . ' € · teilw. eingelöst</span>' : '';
+            $teil = ! empty( $g['teileingeloest'] ) ? '<br><span style="font-size:11px;color:#777">von ' . number_format( (float) $g['betrag'], 2, ',', '.' ) . ' € · teilweise eingelöst</span>' : '';
             $herk = ! empty( $g['aus_rest'] ) ? '<br><span style="font-size:11px;color:#777">Restguthaben-Gutschein</span>' : '';
             $zu   = ! empty( $g['zustellung'] ) ? '<br><span style="font-size:11px;color:#777">Geschenk: ' . esc_html( $g['zustellung'] ) . '</span>' : '';
             $pdf_url = wp_nonce_url( admin_url( 'admin-post.php?action=bschi_gs_pdf&code=' . rawurlencode( (string) ( $g['code'] ?? '' ) ) ), 'bschi_gs_pdf_' . ( $g['code'] ?? '' ) );
             echo '<tr><td>' . $ddmmyy( $g['datum'] ?? '' ) . '</td>'
                . '<td>' . esc_html( $g['typ_txt'] ?? '' ) . ( ! empty( $g['empfaenger'] ) ? '<br><span style="font-size:11px;color:#777">für ' . esc_html( $g['empfaenger'] ) . '</span>' : '' ) . $herk . '</td>'
-               . '<td><b>' . number_format( $verf, 2, ',', '.' ) . ' €</b>' . $teil . '</td>'
+               . '<td><b>' . number_format( $verf, 2, ',', '.' ) . ' €</b>' . $teil . $hist_html( $g ) . '</td>'
                . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . $zu . '</td>'
                . '<td><a href="' . esc_url( $pdf_url ) . '">herunterladen</a></td></tr>';
         }
@@ -658,7 +662,7 @@ add_action( 'woocommerce_account_gutscheine_endpoint', function () {
         foreach ( $eingeloest as $g ) {
             echo '<tr style="opacity:.75"><td>' . $ddmmyy( $g['eingeloest_am'] ?? $g['datum'] ?? '' ) . '</td>'
                . '<td>' . esc_html( $g['typ_txt'] ?? '' ) . '</td>'
-               . '<td>' . number_format( (float) ( $g['eingeloest_betrag'] ?? $g['betrag'] ), 2, ',', '.' ) . ' €</td>'
+               . '<td>' . number_format( (float) ( $g['eingeloest_betrag'] ?? $g['betrag'] ), 2, ',', '.' ) . ' €' . $hist_html( $g ) . '</td>'
                . '<td>' . esc_html( $g['kanal'] ?? '' ) . '</td>'
                . '<td style="font-family:monospace">' . esc_html( $g['code'] ?? '' ) . '</td></tr>';
         }
