@@ -1283,7 +1283,12 @@ function bschi_wallet_topup_paid( $order_id ) {
 }
 
 // ── Mit Guthaben zahlen (Checkbox an der Kasse, negative Gebühr) ─────────────
-add_action( 'woocommerce_review_order_before_payment', 'bschi_wallet_pay_field' );
+// WICHTIG: after_order_total (Prio 20 = direkt unter dem Gutschein-Feld) - der Hook
+// feuert INNERHALB der Bestellübersichts-Tabelle, dort ist das <tr>-Markup gültig
+// und das Live-Theme rendert ihn nachweislich. Der frühere Hook
+// woocommerce_review_order_before_payment kam im Live-Checkout nie zur Anzeige
+// (außerhalb der Tabelle; Saldo-Endpoint wurde nie aufgerufen).
+add_action( 'woocommerce_review_order_after_order_total', 'bschi_wallet_pay_field', 20 );
 function bschi_wallet_pay_field() {
     if ( ! bschi_feature_enabled( 'gutschein_shop' ) || ! is_user_logged_in() || ! WC()->cart ) { return; }
     // Aufladung im Warenkorb? Dann kein Bezahlen mit Guthaben (Zirkel vermeiden)
