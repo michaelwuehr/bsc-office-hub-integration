@@ -120,7 +120,9 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
             <?php endif; ?>
             <b>Gedruckte Karte im schönen Kuvert</b><br><span style="font-size:13px;color:#666">Wir drucken
             deinen Gutschein als hochwertige Karte und senden sie per Post –
-            <b>+<?php echo esc_html( number_format( $print_preis, 2, ',', '.' ) ); ?> €</b> zzgl. Versand.</span>
+            <b>+<?php echo esc_html( number_format( $print_preis, 2, ',', '.' ) ); ?> €</b> zzgl. Versand.
+            Tipp: Beim Kaufabschluss kannst du eine abweichende Lieferadresse angeben –
+            wir senden die Karte dann direkt an die/den Beschenkte(n).</span>
           </label>
         </div>
 
