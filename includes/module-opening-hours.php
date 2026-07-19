@@ -21,7 +21,15 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 	if ( ! bschi_feature_enabled( 'offen_banner' ) ) {
 		return '';
 	}
-	$a = shortcode_atts( [ 'standort' => '' ], $atts, 'bsc_offen_banner' ); // leer = alle
+	$a = shortcode_atts( [
+		'standort'    => '',        // leer = alle
+		'stil'        => 'banner',  // banner (Box) | text (reine Textzeile, passt sich dem Theme an)
+		'groesse'     => '',        // Schriftgroesse in px (leer = 14 bzw. Theme bei stil=text)
+		'farbe'       => '',        // Textfarbe (leer = #1a1a18 bzw. inherit bei stil=text)
+		'farbe_offen' => '#2e9e5b', // Statusfarbe geoeffnet (Punkt)
+		'farbe_zu'    => '#c0392b', // Statusfarbe geschlossen (Punkt)
+		'punkt'       => 'an',      // an | aus - roter/gruener Punkt
+	], $atts, 'bsc_offen_banner' );
 	$data = bschi_hub_get( '/api/v1/shop/oeffnungszeiten', BSCHI_OZ_CACHE_TTL );
 	if ( empty( $data['standorte'] ) ) {
 		return '';
@@ -30,17 +38,43 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 		$data['standorte'] = array_values( array_filter( $data['standorte'],
 			fn( $s ) => ( $s['id'] ?? '' ) === $a['standort'] ) );
 	}
+	$hex = fn( $v, $std ) => preg_match( '/^#[0-9a-fA-F]{3,8}$/', (string) $v ) ? $v : $std;
+	$stil_text = ( $a['stil'] === 'text' );
+	$punkt_an  = ( $a['punkt'] !== 'aus' );
+	$groesse   = (int) $a['groesse'];
+	$groesse   = ( $groesse >= 8 && $groesse <= 48 ) ? $groesse : 0;
+	$farbe     = preg_match( '/^#[0-9a-fA-F]{3,8}$/', (string) $a['farbe'] ) ? $a['farbe'] : '';
+	$f_offen   = $hex( $a['farbe_offen'], '#2e9e5b' );
+	$f_zu      = $hex( $a['farbe_zu'], '#c0392b' );
+
+	if ( $stil_text ) {
+		// Reine Textzeile: kein Hintergrund/Rahmen, erbt Theme-Schrift und -Farbe
+		$css = 'display:none;align-items:center;gap:7px;line-height:1.4'
+			 . ( $groesse ? ';font-size:' . $groesse . 'px' : '' )
+			 . ( $farbe ? ';color:' . $farbe : '' );
+		$anzeige = $punkt_an ? 'inline-flex' : 'inline';
+	} else {
+		$css = 'display:none;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;line-height:1.4;'
+			 . 'background:#f4f1ec;border:1px solid #d8d0c4'
+			 . ';font-size:' . ( $groesse ?: 14 ) . 'px'
+			 . ';color:' . ( $farbe ?: '#1a1a18' );
+		$anzeige = 'flex';
+	}
 	$json = wp_json_encode( $data );
+	$cfg  = wp_json_encode( [ 'punkt' => $punkt_an, 'offen' => $f_offen, 'zu' => $f_zu, 'anzeige' => $anzeige ] );
 	$id   = 'bschi-oz-' . wp_generate_password( 6, false );
 	ob_start();
 	?>
-	<div class="bschi-oz" id="<?php echo esc_attr( $id ); ?>" style="display:none;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;font-size:14px;line-height:1.4;background:#f4f1ec;border:1px solid #d8d0c4;color:#1a1a18">
-		<span class="bschi-oz-dot" style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#999"></span>
+	<<?php echo $stil_text ? 'span' : 'div'; ?> class="bschi-oz" id="<?php echo esc_attr( $id ); ?>" style="<?php echo esc_attr( $css ); ?>">
+		<?php if ( $punkt_an ) : ?>
+		<span class="bschi-oz-dot" style="width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block;background:#999"></span>
+		<?php endif; ?>
 		<span class="bschi-oz-text"></span>
-	</div>
+	</<?php echo $stil_text ? 'span' : 'div'; ?>>
 	<script>
 	(function(){
 		var data = <?php echo $json; ?>;
+		var cfg = <?php echo $cfg; ?>;
 		var el = document.getElementById('<?php echo esc_js( $id ); ?>');
 		if (!el || !data.standorte || !data.standorte.length) return;
 		var TAGE = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
@@ -82,22 +116,23 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 		});
 		var txt, farbe;
 		if (offen.length) {
-			farbe = '#2e9e5b';
+			farbe = cfg.offen;
 			txt = 'Jetzt geöffnet in ' + offen.map(function(o){ return o.name + (o.label ? ' – ' + o.label : '') + ' (bis ' + kurz(o.bis) + ' Uhr)'; }).join(' und ');
 		} else if (naechste) {
-			farbe = '#c0392b';
+			farbe = cfg.zu;
 			var wann = naechste.tage === 0 ? 'heute' : (naechste.tage === 1 ? 'morgen' : ('am ' + TAGE_DE[naechste.dow]));
 			txt = (data.standorte.length > 1 ? 'Beide Läden geschlossen – wir öffnen ' : 'Geschlossen – wir öffnen ')
 				+ wann + ' ' + kurz(naechste.von) + '–' + kurz(naechste.bis) + ' Uhr in ' + naechste.name
 				+ (naechste.label ? ' (' + naechste.label + ')' : '');
 		} else {
-			farbe = '#c0392b';
+			farbe = cfg.zu;
 			txt = 'Derzeit geschlossen';
 		}
 		if (data.hinweis) txt += ' · ' + data.hinweis;
-		el.querySelector('.bschi-oz-dot').style.background = farbe;
+		var dot = el.querySelector('.bschi-oz-dot');
+		if (dot) dot.style.background = farbe;
 		el.querySelector('.bschi-oz-text').textContent = txt;
-		el.style.display = 'flex';
+		el.style.display = cfg.anzeige;
 	})();
 	</script>
 	<?php

@@ -287,7 +287,10 @@ function bschi_render_admin_page(): void {
                         <label><input type="checkbox" name="feature_event_banner" value="1" <?= checked( $s['feature_event_banner'] ?? false, true, false ); ?>>
                             Veranstaltungs-Banner <code>[bsc_hub_event]</code> + Heute-Banner <code>[bsc_hub_event_today]</code> (Führungen/Events)</label><br>
                         <label><input type="checkbox" name="feature_offen_banner" value="1" <?= checked( $s['feature_offen_banner'] ?? false, true, false ); ?>>
-                            Öffnungszeiten-Banner <code>[bsc_offen_banner]</code></label><br>
+                            Öffnungszeiten-Banner <code>[bsc_offen_banner]</code>
+                            <span style="color:#777;font-size:12px">– Optionen: <code>stil="text"</code> (reine Textzeile, passt sich dem Theme an),
+                            <code>groesse="16"</code> (px), <code>farbe="#333333"</code>, <code>farbe_offen="#2e9e5b"</code>,
+                            <code>farbe_zu="#c0392b"</code>, <code>punkt="aus"</code>, <code>standort="loc-th"</code></span></label><br>
                         <label><input type="checkbox" name="feature_exit_popup" value="1" <?= checked( $s['feature_exit_popup'] ?? false, true, false ); ?>>
                             Exit-Intent-Popup (Regeln im Marketing Hub → Newsletter-Bereich)</label><br>
                         <label><input type="checkbox" name="feature_social_feed" value="1" <?= checked( $s['feature_social_feed'] ?? false, true, false ); ?>>
