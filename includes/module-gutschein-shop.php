@@ -183,7 +183,8 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
 
       function esc(s){ var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
       function previewHtml(d){
-        var betrag = (document.getElementById('bschi-gs-betrag').value || '25').replace('.', ',');
+        var bTxt = (parseFloat((document.getElementById('bschi-gs-betrag').value || '25').replace(',', '.')) || 25).toFixed(2).replace('.', ',');
+        var betrag = bTxt.slice(-3) === ',00' ? bTxt.slice(0, -3) : bTxt;
         var emp = document.getElementById('bschi-gs-empfaenger').value.trim();
         var abs = document.getElementById('bschi-gs-absender').value.trim();
         var gruss = document.getElementById('bschi-gs-gruss').value.trim();
@@ -333,7 +334,11 @@ add_action( 'template_redirect', function () {
 add_action( 'woocommerce_before_calculate_totals', function ( $cart ) {
     foreach ( $cart->get_cart() as $item ) {
         if ( ! empty( $item['bschi_gutschein']['betrag'] ) ) {
-            $item['data']->set_price( (float) $item['bschi_gutschein']['betrag'] );
+            $b = (float) $item['bschi_gutschein']['betrag'];
+            // Auch regular_price setzen - sonst zeigt das Theme "25,00 -> 5,50" als Streichpreis
+            $item['data']->set_price( $b );
+            $item['data']->set_regular_price( (string) $b );
+            $item['data']->set_sale_price( '' );
         }
     }
 }, 20 );
@@ -1039,6 +1044,20 @@ function bschi_gs_virtual_coupon( $data, $code ) {
     ];
 }
 
+// Warenkorb/Kasse: konfiguriertes Design als Produktbild anzeigen (Thumb vom Hub)
+add_filter( 'woocommerce_cart_item_thumbnail', function ( $img, $item ) {
+    $design = $item['bschi_gutschein']['design'] ?? '';
+    if ( $design ) {
+        $url = bschi_hub_url( '/static/gutschein-thumbs/' . sanitize_key( $design ) . '.png' );
+        if ( $url ) {
+            return '<img src="' . esc_url( $url ) . '" alt="Gutschein-Design" '
+                 . 'style="width:64px;height:auto;border:1px solid #ddd;border-radius:6px" '
+                 . 'onerror="this.style.display=&quot;none&quot;">';
+        }
+    }
+    return $img;
+}, 10, 2 );
+
 // 6) Beschriftung: Gutschein-Coupons heissen kundenseitig "Gutschein", nicht "Rabatt".
 //    Unsere Codes (Kombi virtuell, Online-WC-Coupons, Aura) sind 10-14-stellig numerisch.
 function bschi_gs_ist_gutschein_code( $code ): bool {
@@ -1155,7 +1174,10 @@ add_action( 'template_redirect', function () {
 add_action( 'woocommerce_before_calculate_totals', function ( $cart ) {
     foreach ( $cart->get_cart() as $item ) {
         if ( ! empty( $item['bschi_wallet_topup'] ) ) {
-            $item['data']->set_price( (float) $item['bschi_wallet_topup'] );
+            $b = (float) $item['bschi_wallet_topup'];
+            $item['data']->set_price( $b );
+            $item['data']->set_regular_price( (string) $b );
+            $item['data']->set_sale_price( '' );
         }
     }
 }, 20 );
