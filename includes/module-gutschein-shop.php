@@ -42,6 +42,32 @@ function bschi_gs_product_id(): int {
     return (int) $pid;
 }
 
+/**
+ * Verstecktes PHYSISCHES Zusatz-Produkt "gedruckte Karte im Kuvert" (Aufpreis + Versand).
+ * In WooCommerce direkt pflegbar: Preis (Aufpreis), Produktbild (im Konfigurator sichtbar)
+ * und Artikelnummer/SKU (= Xentral-Artikel -> Versandabwicklung ueber Xentral).
+ */
+function bschi_gs_print_product_id(): int {
+    $pid = (int) get_option( 'bschi_gs_print_product_id', 0 );
+    if ( $pid && get_post_status( $pid ) === 'publish' ) {
+        return $pid;
+    }
+    if ( ! function_exists( 'wc_get_product' ) ) {
+        return 0;
+    }
+    $p = new WC_Product_Simple();
+    $p->set_name( 'Geschenkgutschein – gedruckte Karte im Kuvert' );
+    $p->set_status( 'publish' );
+    $p->set_catalog_visibility( 'hidden' );
+    $p->set_virtual( false );          // physisch -> WooCommerce erhebt Versandkosten
+    $p->set_regular_price( '2' );      // Aufpreis, in WC aenderbar
+    $p->set_tax_status( 'taxable' );   // Karte+Kuvert = Ware
+    $p->set_sold_individually( false );
+    $pid = $p->save();
+    update_option( 'bschi_gs_print_product_id', $pid );
+    return (int) $pid;
+}
+
 // ─── Shortcode: Konfigurator ─────────────────────────────────────────────────
 
 add_shortcode( 'bsc_gutschein_shop', function (): string {
@@ -59,6 +85,10 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
     $betraege = $feed['betraege'] ?? [ 10, 25, 50, 100 ];
     $frei_min = (float) ( $feed['frei_min'] ?? 5 );
     $frei_max = (float) ( $feed['frei_max'] ?? 250 );
+    $print_pid   = bschi_gs_print_product_id();
+    $print_prod  = $print_pid ? wc_get_product( $print_pid ) : null;
+    $print_preis = $print_prod ? (float) $print_prod->get_price() : 2.0;
+    $print_img   = $print_pid ? ( get_the_post_thumbnail_url( $print_pid, 'medium' ) ?: '' ) : '';
 
     ob_start();
     ?>
@@ -75,7 +105,26 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
           im Laden (Theresienthal &amp; Schweinhütt, mit Barcode für die Kasse) und im Online-Shop
           (Code fürs Kassenfeld).</p>
 
-        <h3 style="margin:20px 0 8px">2. Betrag</h3>
+        <h3 style="margin:20px 0 8px">2. Wie möchtest du deinen Gutschein?</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <label class="bschi-gs-format" style="flex:1;min-width:220px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
+            <input type="radio" name="bschi_gs_format" value="digital" checked>
+            <b>Digital (PDF)</b><br><span style="font-size:13px;color:#666">Sofort nach Zahlungseingang
+            per E-Mail – zum selbst Ausdrucken oder Weiterleiten. Kostenlos.</span>
+          </label>
+          <label class="bschi-gs-format" style="flex:1;min-width:220px;border:2px solid #ccc;border-radius:10px;padding:12px;cursor:pointer">
+            <input type="radio" name="bschi_gs_format" value="druck">
+            <?php if ( $print_img ) : ?>
+              <img src="<?php echo esc_url( $print_img ); ?>" alt="Gedruckte Karte"
+                style="float:right;width:74px;height:74px;object-fit:cover;border-radius:8px;margin-left:8px">
+            <?php endif; ?>
+            <b>Gedruckte Karte im schönen Kuvert</b><br><span style="font-size:13px;color:#666">Wir drucken
+            deinen Gutschein als hochwertige Karte und senden sie per Post –
+            <b>+<?php echo esc_html( number_format( $print_preis, 2, ',', '.' ) ); ?> €</b> zzgl. Versand.</span>
+          </label>
+        </div>
+
+        <h3 style="margin:20px 0 8px">3. Betrag</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <?php foreach ( $betraege as $b ) : ?>
             <button type="button" class="bschi-gs-betrag" data-betrag="<?php echo esc_attr( $b ); ?>"
@@ -87,7 +136,7 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
             style="width:110px;padding:9px;border:2px solid #ccc;border-radius:10px"> €
         </div>
 
-        <h3 style="margin:20px 0 8px">3. Persönlich machen (optional)</h3>
+        <h3 style="margin:20px 0 8px">4. Persönlich machen (optional)</h3>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <input type="text" name="bschi_gs_empfaenger" id="bschi-gs-empfaenger" maxlength="60" placeholder="Für wen? (Name)"
             style="padding:10px;border:2px solid #ccc;border-radius:10px">
@@ -97,7 +146,7 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
         <textarea name="bschi_gs_gruss" id="bschi-gs-gruss" maxlength="300" rows="3" placeholder="Dein Grußtext …"
           style="width:100%;margin-top:10px;padding:10px;border:2px solid #ccc;border-radius:10px"></textarea>
 
-        <h3 style="margin:20px 0 8px">4. Zustellung</h3>
+        <h3 style="margin:20px 0 8px">5. Zustellung</h3>
         <div style="display:flex;flex-direction:column;gap:8px">
           <label style="cursor:pointer"><input type="radio" name="bschi_gs_zustellung" value="selbst" checked>
             An mich – ich verschenke den Gutschein selbst (PDF per E-Mail an meine Adresse)</label>
@@ -166,16 +215,15 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
       function renderGallery(){
         var g = document.getElementById('bschi-gs-gallery');
         g.innerHTML = '';
+        var cells = [];
         designs.forEach(function(d){
           var cell = document.createElement('div');
           cell.style.cssText = 'border:3px solid ' + (d.key === cfg.design ? '#5a6b52' : '#ddd')
             + ';border-radius:10px;overflow:hidden;cursor:pointer;background:#fff';
           var f = document.createElement('iframe');
-          f.style.cssText = 'width:100%;height:110px;border:0;pointer-events:none';
+          f.style.cssText = 'width:100%;border:0;pointer-events:none;display:block';
           f.setAttribute('scrolling', 'no');
           f.setAttribute('sandbox', '');
-          f.srcdoc = previewHtml(d).replace('</style>',
-            '.blatt{transform-origin:top left;transform:scale(0.17);width:210mm;height:150mm}</style>');
           var lbl = document.createElement('div');
           lbl.style.cssText = 'padding:6px 8px;font-size:12.5px;font-weight:600;text-align:center';
           lbl.textContent = d.name;
@@ -186,6 +234,16 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
             renderGallery(); renderPreview();
           });
           g.appendChild(cell);
+          cells.push({ f: f, d: d });
+        });
+        // Ganze A4-Seite proportional in die Kachel skalieren (nichts mehr abgeschnitten)
+        var w = (g.firstChild ? g.firstChild.clientWidth : 156) - 6;
+        var sc = Math.max(0.05, w / 793.7);
+        cells.forEach(function(c){
+          c.f.style.height = Math.round(1122.5 * sc) + 'px';
+          c.f.srcdoc = previewHtml(c.d).replace('</style>',
+            'html,body{margin:0;padding:0;overflow:hidden}'
+            + '.blatt{transform-origin:top left;transform:scale(' + sc.toFixed(4) + ');width:210mm;height:297mm;margin:0}</style>');
         });
       }
       document.querySelectorAll('.bschi-gs-betrag').forEach(function(b){
@@ -197,6 +255,15 @@ add_shortcode( 'bsc_gutschein_shop', function (): string {
       ['bschi-gs-betrag','bschi-gs-empfaenger','bschi-gs-absender','bschi-gs-gruss'].forEach(function(id){
         document.getElementById(id).addEventListener('input', renderPreview);
       });
+      document.querySelectorAll('input[name=bschi_gs_format]').forEach(function(r){
+        r.addEventListener('change', function(){
+          document.querySelectorAll('.bschi-gs-format').forEach(function(l){
+            l.style.borderColor = l.querySelector('input').checked ? '#5a6b52' : '#ccc';
+          });
+        });
+      });
+      var fmtInit = document.querySelector('.bschi-gs-format input');
+      if (fmtInit) fmtInit.dispatchEvent(new Event('change'));
       document.querySelectorAll('input[name=bschi_gs_zustellung]').forEach(function(r){
         r.addEventListener('change', function(){
           var box = document.getElementById('bschi-gs-direkt');
@@ -226,8 +293,10 @@ add_action( 'template_redirect', function () {
         wc_add_notice( 'Bitte einen Gutschein-Betrag zwischen 5 und 250 € wählen.', 'error' );
         return;
     }
+    $format = ( $_POST['bschi_gs_format'] ?? '' ) === 'druck' ? 'druck' : 'digital';
     $daten = [
         'typ'        => 'kombi', // Nur noch Kombi-Gutscheine (ueberall einloesbar)
+        'zustellart' => $format,
         'betrag'     => $betrag,
         'design'     => sanitize_key( $_POST['bschi_gs_design'] ?? 'klassik' ),
         'empfaenger' => sanitize_text_field( wp_unslash( $_POST['bschi_gs_empfaenger'] ?? '' ) ),
@@ -249,6 +318,12 @@ add_action( 'template_redirect', function () {
     $pid = bschi_gs_product_id();
     if ( $pid && WC()->cart ) {
         WC()->cart->add_to_cart( $pid, 1, 0, [], [ 'bschi_gutschein' => $daten, 'unique_key' => md5( wp_json_encode( $daten ) . microtime() ) ] );
+        if ( 'druck' === $format ) {
+            $ppid = bschi_gs_print_product_id();
+            if ( $ppid ) {
+                WC()->cart->add_to_cart( $ppid, 1 );
+            }
+        }
         wp_safe_redirect( wc_get_cart_url() );
         exit;
     }
@@ -268,6 +343,7 @@ add_filter( 'woocommerce_get_item_data', function ( $rows, $item ) {
     if ( ! empty( $item['bschi_gutschein'] ) ) {
         $g = $item['bschi_gutschein'];
         $rows[] = [ 'key' => 'Einsatzort', 'value' => $g['typ'] === 'laden' ? 'Laden (Theresienthal & Schweinhütt)' : ( $g['typ'] === 'kombi' ? 'Überall (Laden + Online)' : 'Online-Shop' ) ];
+        $rows[] = [ 'key' => 'Format', 'value' => ( $g['zustellart'] ?? '' ) === 'druck' ? 'Gedruckte Karte im Kuvert' : 'Digital (PDF per E-Mail)' ];
         if ( ! empty( $g['empfaenger'] ) ) {
             $rows[] = [ 'key' => 'Für', 'value' => esc_html( $g['empfaenger'] ) ];
         }
@@ -285,6 +361,7 @@ add_action( 'woocommerce_checkout_create_order_line_item', function ( $line_item
         $g = $values['bschi_gutschein'];
         $line_item->add_meta_data( '_bschi_gutschein', wp_json_encode( $g ), true );
         $line_item->add_meta_data( 'Einsatzort', $g['typ'] === 'laden' ? 'Laden' : ( $g['typ'] === 'kombi' ? 'Überall (Laden + Online)' : 'Online-Shop' ), true );
+        $line_item->add_meta_data( 'Format', ( $g['zustellart'] ?? '' ) === 'druck' ? 'Gedruckte Karte im Kuvert' : 'Digital (PDF)', true );
         if ( ! empty( $g['empfaenger'] ) ) {
             $line_item->add_meta_data( 'Für', $g['empfaenger'], true );
         }
@@ -317,6 +394,7 @@ function bschi_gs_order_paid( $order_id ): void {
         $items[] = [
             'item_key'   => (string) $item_id,
             'typ'        => $g['typ'] ?? 'online',
+            'zustellart' => $g['zustellart'] ?? 'digital',
             'betrag'     => (float) $g['betrag'],
             'design'     => $g['design'] ?? 'klassik',
             'empfaenger' => $g['empfaenger'] ?? '',
