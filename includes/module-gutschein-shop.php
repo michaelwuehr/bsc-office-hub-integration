@@ -961,6 +961,37 @@ function bschi_gs_virtual_coupon( $data, $code ) {
     ];
 }
 
+// 6) Beschriftung: Gutschein-Coupons heissen kundenseitig "Gutschein", nicht "Rabatt".
+//    Unsere Codes (Kombi virtuell, Online-WC-Coupons, Aura) sind 10-14-stellig numerisch.
+function bschi_gs_ist_gutschein_code( $code ): bool {
+    return (bool) preg_match( '/^\d{10,14}$/', (string) $code );
+}
+
+// Warenkorb/Kasse: Coupon-Zeile "Gutschein <code>" statt "Gutschein: <code>"/"Coupon: <code>"
+add_filter( 'woocommerce_cart_totals_coupon_label', function ( $label, $coupon ) {
+    if ( $coupon && bschi_gs_ist_gutschein_code( $coupon->get_code() ) ) {
+        return 'Gutschein ' . $coupon->get_code();
+    }
+    return $label;
+}, 10, 2 );
+
+// Bestellbestätigung, Kundenkonto-Bestellansicht + alle WC-Mails: die Summen-Zeile
+// "Rabatt" heisst "Gutschein", wenn ausschliesslich Gutschein-Codes angewendet wurden
+add_filter( 'woocommerce_get_order_item_totals', function ( $rows, $order ) {
+    if ( isset( $rows['discount'] ) && $order ) {
+        $codes = $order->get_coupon_codes();
+        if ( $codes ) {
+            foreach ( $codes as $c ) {
+                if ( ! bschi_gs_ist_gutschein_code( $c ) ) {
+                    return $rows;   // gemischt mit echten Rabatt-Coupons -> Standard lassen
+                }
+            }
+            $rows['discount']['label'] = count( $codes ) > 1 ? 'Gutscheine:' : 'Gutschein:';
+        }
+    }
+    return $rows;
+}, 10, 2 );
+
 // ═══════════════ WALLET: Aufladen + Mit Guthaben zahlen (P2) ═══════════════════
 
 // Verstecktes WC-Produkt fürs Aufladen (einmalig)
