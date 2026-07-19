@@ -94,6 +94,7 @@ function bschi_render_admin_page(): void {
             // First-Party-Tracking (Marketing Hub)
             'feature_tracking'      => isset( $_POST['feature_tracking'] ),
             'feature_gutschein_shop' => isset( $_POST['feature_gutschein_shop'] ),
+            'feature_abo'            => isset( $_POST['feature_abo'] ),
             'tracking_hub_url'      => esc_url_raw( trim( $_POST['tracking_hub_url'] ?? '' ) ) ?: 'https://marketing.bsc-theresienthal.de',
             'tracking_secret'       => sanitize_text_field( trim( $_POST['tracking_secret'] ?? '' ) ),
 
@@ -310,6 +311,8 @@ function bschi_render_admin_page(): void {
                             First-Party-Tracking aktivieren (Kampagnen-Analytics)</label>
                         <label><input type="checkbox" name="feature_gutschein_shop" value="1" <?= checked( $s['feature_gutschein_shop'] ?? false, true, false ); ?>>
                             <strong>Geschenkgutschein-Konfigurator</strong> – Shortcode <code>[bsc_gutschein_shop]</code>: Kunden konfigurieren Gutscheine (Online-Shop oder Laden) mit Design-Vorlagen; Ausstellung + PDF-Mail über den Office Hub nach Zahlungseingang.</label>
+                        <label><input type="checkbox" name="feature_abo" value="1" <?= checked( $s['feature_abo'] ?? false, true, false ); ?>>
+                            <strong>Produkt-Abos</strong> – Abonnieren-Button auf Produktseiten, Abo-Liste (Seite mit <code>[bsc_abo_liste]</code>, Slug <code>/abo/</code>), Mein-Konto-Tab „Abos", Kündigungsseite (<code>[bsc_abo_kuendigung]</code>). Abo-Verwaltung im Office Hub; dort muss zusätzlich das Setting <code>feature_abo</code> aktiv sein.</label>
                         <p class="description">
                             Startet erst nach Consent „Statistik" (Complianz), keine Cookies, Daten gehen
                             ausschließlich an den eigenen Marketing Hub. <strong>Vor der Aktivierung die
