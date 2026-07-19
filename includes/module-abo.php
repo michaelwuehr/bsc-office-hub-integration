@@ -609,3 +609,139 @@ add_shortcode( 'bsc_abo_kuendigung', function (): string {
         . '<p><label>Hinweis (optional, z. B. Abo-Nummer)<br><input type="text" name="bschi_kbtn_hinweis" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px"></label></p>'
         . '<button type="submit" style="padding:12px 22px;border:0;border-radius:10px;background:#5a6b52;color:#fff;font-weight:700;cursor:pointer">Jetzt kündigen</button></form>';
 } );
+
+// ── P4: Abo-Lieferung -> echte WC-Bestellung (Hub-Scheduler ruft diese Route) ──
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'bschi/v1', '/abo-lieferung', [
+        'methods'             => 'POST',
+        'callback'            => 'bschi_abo_lieferung_anlegen',
+        'permission_callback' => 'bschi_voucher_permission',   // X-BSCHI-Secret (hash_equals)
+    ] );
+} );
+
+function bschi_abo_lieferung_anlegen( WP_REST_Request $request ) {
+    if ( ! function_exists( 'wc_create_order' ) ) {
+        return new WP_REST_Response( [ 'ok' => false, 'error' => 'WooCommerce nicht aktiv' ], 503 );
+    }
+    if ( ! bschi_feature_enabled( 'abo' ) ) {
+        return new WP_REST_Response( [ 'ok' => false, 'error' => 'Abo-Feature im Plugin deaktiviert' ], 403 );
+    }
+    $email  = sanitize_email( (string) $request->get_param( 'email' ) );
+    $items  = $request->get_param( 'items' );
+    $rabatt = max( 0.0, min( 90.0, (float) $request->get_param( 'rabatt_pct' ) ) );
+    $zahlart = sanitize_text_field( (string) $request->get_param( 'zahlart' ) ) ?: 'rechnung';
+    $abo_id = (int) $request->get_param( 'abo_id' );
+    $lief_id = (int) $request->get_param( 'lieferung_id' );
+    $frei_ab = (float) $request->get_param( 'versand_frei_ab' );
+    $versand_brutto = (float) $request->get_param( 'versandkosten' );
+    if ( ! $email || ! is_array( $items ) || ! $items || ! $abo_id || ! $lief_id ) {
+        return new WP_REST_Response( [ 'ok' => false, 'error' => 'email, items, abo_id, lieferung_id erforderlich' ], 400 );
+    }
+
+    // Idempotenz: existiert schon eine Bestellung zu dieser Lieferung?
+    $vorhanden = wc_get_orders( [ 'limit' => 1, 'meta_key' => '_bschi_abo_lieferung_id',
+                                  'meta_value' => (string) $lief_id ] );
+    if ( $vorhanden ) {
+        $o = $vorhanden[0];
+        return new WP_REST_Response( [ 'ok' => true, 'duplikat' => true,
+            'order_id' => $o->get_order_number(), 'betrag' => (float) $o->get_total(),
+            'pay_url' => $o->needs_payment() ? $o->get_checkout_payment_url() : '' ], 200 );
+    }
+
+    $user = get_user_by( 'email', $email );
+    try {
+        $order = wc_create_order( [ 'customer_id' => $user ? $user->ID : 0 ] );
+        $fehlend = [];
+        foreach ( $items as $i ) {
+            $sku = sanitize_text_field( (string) ( $i['sku'] ?? '' ) );
+            $menge = max( 1, min( 50, (int) ( $i['menge'] ?? 1 ) ) );
+            $pid = wc_get_product_id_by_sku( $sku );
+            if ( ! $pid && ctype_digit( $sku ) ) { $pid = (int) $sku; }
+            $p = $pid ? wc_get_product( $pid ) : null;
+            if ( ! $p || ! $p->is_purchasable() ) { $fehlend[] = $sku; continue; }
+            $item_id = $order->add_product( $p, $menge );
+            if ( $rabatt > 0 && $item_id ) {
+                $li = $order->get_item( $item_id );
+                $li->set_subtotal( (float) $li->get_subtotal() );   // Originalpreis als Streichpreis
+                $li->set_total( round( (float) $li->get_subtotal() * ( 1 - $rabatt / 100 ), 4 ) );
+                $li->save();
+            }
+        }
+        if ( ! $order->get_items() ) {
+            $order->delete( true );
+            return new WP_REST_Response( [ 'ok' => false,
+                'error' => 'Kein Produkt lieferbar (' . implode( ', ', $fehlend ) . ')' ], 409 );
+        }
+
+        // Adresse: WC-Kundenprofil, sonst letzte Bestellung dieser E-Mail
+        $addr = [];
+        if ( $user ) {
+            $c = new WC_Customer( $user->ID );
+            $addr = array_filter( $c->get_billing() );
+        }
+        if ( empty( $addr['address_1'] ) ) {
+            $letzte = wc_get_orders( [ 'limit' => 1, 'billing_email' => $email,
+                                       'orderby' => 'date', 'order' => 'DESC' ] );
+            if ( $letzte ) { $addr = array_filter( $letzte[0]->get_address( 'billing' ) ); }
+        }
+        $addr['email'] = $email;
+        $order->set_address( $addr, 'billing' );
+        if ( ! empty( $addr['address_1'] ) ) { $order->set_address( $addr, 'shipping' ); }
+
+        // Versand: frei ab Schwelle (Warenwert inkl. USt), sonst Pauschale (brutto -> netto 19 %)
+        $order->calculate_totals();
+        if ( $versand_brutto > 0 && (float) $order->get_total() < $frei_ab ) {
+            $ship = new WC_Order_Item_Shipping();
+            $ship->set_method_title( 'Versand' );
+            $ship->set_total( round( $versand_brutto / 1.19, 4 ) );
+            $order->add_item( $ship );
+        }
+        $order->calculate_totals();
+
+        $order->update_meta_data( '_bschi_abo_lieferung_id', (string) $lief_id );
+        $order->update_meta_data( '_bschi_abo_id', (string) $abo_id );
+        $order->set_created_via( 'bschi-abo' );
+        $order->add_order_note( 'Abo-Lieferung (Office-Abo #' . $abo_id . ', Lieferung #' . $lief_id
+            . ( $rabatt > 0 ? ', ' . $rabatt . ' % Abo-Rabatt' : '' ) . ')' );
+        if ( 'rechnung' === $zahlart ) {
+            $order->set_payment_method_title( 'Rechnung' );
+            $order->set_status( 'processing', 'Abo auf Rechnung – Zahlung per Rechnung.' );
+        } else {
+            $order->set_payment_method_title( 'paypal' === $zahlart ? 'PayPal' : 'Vorkasse' );
+            $order->set_status( 'pending' );
+        }
+        $order->save();
+        return new WP_REST_Response( [ 'ok' => true,
+            'order_id' => $order->get_order_number(),
+            'betrag' => (float) $order->get_total(),
+            'pay_url' => $order->needs_payment() ? $order->get_checkout_payment_url() : '',
+            'fehlend' => $fehlend ], 200 );
+    } catch ( Throwable $e ) {
+        return new WP_REST_Response( [ 'ok' => false, 'error' => substr( $e->getMessage(), 0, 200 ) ], 500 );
+    }
+}
+
+// Abo-Lieferungs-Bestellungen nie als "unbezahlt" auto-stornieren (Zahllink-Modell)
+add_filter( 'woocommerce_cancel_unpaid_order', function ( $cancel, $order ) {
+    if ( $order && $order->get_meta( '_bschi_abo_lieferung_id' ) ) { return false; }
+    return $cancel;
+}, 10, 2 );
+
+// Zahlungseingang einer Abo-Lieferung -> Hub melden (Status bezahlt)
+add_action( 'woocommerce_order_status_processing', 'bschi_abo_lieferung_bezahlt', 45 );
+add_action( 'woocommerce_order_status_completed', 'bschi_abo_lieferung_bezahlt', 45 );
+function bschi_abo_lieferung_bezahlt( $order_id ) {
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) { return; }
+    $lief_id = (int) $order->get_meta( '_bschi_abo_lieferung_id' );
+    if ( ! $lief_id || $order->get_meta( '_bschi_abo_lief_gemeldet' ) ) { return; }
+    $ep = bschi_hub_url( '/api/v1/shop/abo-lieferung-bezahlt' );
+    if ( ! $ep ) { return; }
+    $r = wp_remote_post( $ep, [ 'timeout' => 12, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'lieferung_id' => $lief_id,
+                                    'wc_order_id' => (string) $order->get_order_number() ] ) ] );
+    if ( ! is_wp_error( $r ) && wp_remote_retrieve_response_code( $r ) === 200 ) {
+        $order->update_meta_data( '_bschi_abo_lief_gemeldet', gmdate( 'c' ) );
+        $order->save();
+    }
+}
