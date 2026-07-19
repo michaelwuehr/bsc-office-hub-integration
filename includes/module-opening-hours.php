@@ -114,19 +114,23 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 				if (naechste && naechste.tage <= i) break;
 			}
 		});
+		// Text-Vorlagen aus dem Office Hub (Laden -> Öffnungszeiten), mit Platzhaltern
+		var T = data.texte || {};
 		var txt, farbe;
 		if (offen.length) {
 			farbe = cfg.offen;
-			txt = 'Jetzt geöffnet in ' + offen.map(function(o){ return o.name + (o.label ? ' – ' + o.label : '') + ' (bis ' + kurz(o.bis) + ' Uhr)'; }).join(' und ');
+			var laeden = offen.map(function(o){ return o.name + (o.label ? ' – ' + o.label : '') + ' (bis ' + kurz(o.bis) + ' Uhr)'; }).join(' und ');
+			txt = (T.offen || 'Jetzt geöffnet in {laeden}').split('{laeden}').join(laeden);
 		} else if (naechste) {
 			farbe = cfg.zu;
 			var wann = naechste.tage === 0 ? 'heute' : (naechste.tage === 1 ? 'morgen' : ('am ' + TAGE_DE[naechste.dow]));
-			txt = (data.standorte.length > 1 ? 'Beide Läden geschlossen – wir öffnen ' : 'Geschlossen – wir öffnen ')
-				+ wann + ' ' + kurz(naechste.von) + '–' + kurz(naechste.bis) + ' Uhr in ' + naechste.name
-				+ (naechste.label ? ' (' + naechste.label + ')' : '');
+			txt = (T.geschlossen || 'Geschlossen – wir öffnen {wann} {von}–{bis} Uhr in {laden}')
+				.split('{wann}').join(wann).split('{von}').join(kurz(naechste.von))
+				.split('{bis}').join(kurz(naechste.bis)).split('{laden}').join(naechste.name);
 		} else {
 			farbe = cfg.zu;
-			txt = 'Derzeit geschlossen';
+			txt = T.geschlossen ? T.geschlossen.split('{wann}').join('').split('{von}').join('').split('{bis}').join('').split('{laden}').join('').replace(/\s{2,}/g, ' ').trim()
+				: 'Derzeit geschlossen';
 		}
 		if (data.hinweis) txt += ' · ' + data.hinweis;
 		var dot = el.querySelector('.bschi-oz-dot');
