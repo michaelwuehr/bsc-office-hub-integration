@@ -70,7 +70,9 @@ add_action( 'woocommerce_after_add_to_cart_button', function () {
         echo '<button type="button" id="bschi-abo-add" data-pid="' . esc_attr( $pid ) . '" ' . ( $drauf ? 'disabled' : '' )
            . ' style="margin-left:8px;padding:.618em 1em;border:2px solid #5a6b52;border-radius:4px;background:#fff;color:#5a6b52;font-weight:700;cursor:pointer">'
            . esc_html( $label ) . '</button>'
-           . '<div id="bschi-abo-msg" style="font-size:12px;color:#5a6b52;margin-top:6px"></div>';
+           . '<div id="bschi-abo-msg" style="font-size:12px;color:#5a6b52;margin-top:6px"></div>'
+           . '<div style="font-size:12px;margin-top:2px"><a href="#" id="bschi-abo-addto" style="color:#5a6b52">Zu bestehendem Abo hinzufügen</a>'
+           . '<span id="bschi-abo-addto-box" style="display:none"></span></div>';
         ?>
         <script>
         (function(){var b=document.getElementById('bschi-abo-add');if(!b)return;
@@ -85,6 +87,33 @@ add_action( 'woocommerce_after_add_to_cart_button', function () {
             var m=document.getElementById('bschi-abo-msg');
             if(d&&d.success){m.innerHTML='Gemerkt. <a href="<?php echo esc_js( esc_url( home_url( '/abo/' ) ) ); ?>">Zur Abo-Liste</a>';}
             else{b.disabled=false;m.textContent=(d&&d.data)||'Fehler';}
+          });
+        });
+        var link=document.getElementById('bschi-abo-addto');
+        if(link)link.addEventListener('click',function(ev){ev.preventDefault();
+          var box=document.getElementById('bschi-abo-addto-box');
+          var fd=new FormData();fd.append('action','bschi_abo_targets');
+          fd.append('nonce','<?php echo esc_js( wp_create_nonce( 'bschi_abo' ) ); ?>');
+          link.textContent='…';
+          fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>',{method:'POST',body:fd,credentials:'same-origin'})
+          .then(function(r){return r.json();}).then(function(d){
+            if(!d||!d.success||!d.data.length){link.textContent='Kein laufendes Abo vorhanden';return;}
+            link.style.display='none';box.style.display='';
+            var sel=document.createElement('select');sel.style.cssText='padding:6px;border:1px solid #ccc;border-radius:6px;max-width:240px';
+            d.data.forEach(function(z){var o=document.createElement('option');o.value=z.id;o.textContent=z.label;sel.appendChild(o);});
+            var ok=document.createElement('button');ok.type='button';ok.textContent='Hinzufügen';
+            ok.style.cssText='margin-left:6px;padding:6px 12px;border:0;border-radius:6px;background:#5a6b52;color:#fff;cursor:pointer';
+            ok.addEventListener('click',function(){
+              var fd2=new FormData();fd2.append('action','bschi_abo_items');fd2.append('abo_id',sel.value);
+              fd2.append('hinzu_pid',b.dataset.pid);
+              var q=document.querySelector('form.cart input.qty');fd2.append('hinzu_menge',q&&q.value?q.value:'1');
+              fd2.append('nonce','<?php echo esc_js( wp_create_nonce( 'bschi_abo' ) ); ?>');
+              ok.disabled=true;ok.textContent='…';
+              fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>',{method:'POST',body:fd2,credentials:'same-origin'})
+              .then(function(r){return r.json();}).then(function(d2){
+                box.innerHTML=(d2&&d2.success)?'In dein Abo übernommen – gilt ab der nächsten Lieferung.':((d2&&d2.data)||'Fehler');});
+            });
+            box.appendChild(sel);box.appendChild(ok);
           });
         });})();
         </script>
@@ -372,11 +401,25 @@ function bschi_abo_account_tab() {
            . ( (float) $a['rabatt_pct'] > 0 ? ' · ' . esc_html( rtrim( rtrim( number_format( (float) $a['rabatt_pct'], 1, ',', '' ), '0' ), ',' ) ) . ' % Rabatt' : '' ) . '<br>'
            . 'Nächste Lieferung: <b>' . esc_html( $fmt( $a['naechste_lieferung'] ) ) . '</b>'
            . ( $a['ende_am'] ? ' · Ende: ' . esc_html( $fmt( $a['ende_am'] ) ) : '' ) . '</div>'
-           . '<ul style="font-size:13px;margin:8px 0 10px 18px">';
+           . '<div style="margin:8px 0 10px">';
+        $mehrere = count( $a['items'] ) > 1;
         foreach ( $a['items'] as $i ) {
-            echo '<li>' . esc_html( $i['name'] ?: $i['sku'] ) . ' &times; ' . (int) $i['menge'] . '</li>';
+            echo '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px">'
+               . '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">' . esc_html( $i['name'] ?: $i['sku'] ) . '</span>';
+            if ( $beendet ) {
+                echo '<span>&times; ' . (int) $i['menge'] . '</span>';
+            } else {
+                echo '<input type="number" class="bschi-abo-item-qty" data-abo="' . (int) $a['id'] . '" data-item="' . (int) $i['id'] . '"'
+                   . ' value="' . (int) $i['menge'] . '" min="1" max="50" style="width:64px;padding:5px;border:1px solid #ccc;border-radius:6px">'
+                   . ( $mehrere ? '<button type="button" class="bschi-abo-item-del" data-abo="' . (int) $a['id'] . '" data-item="' . (int) $i['id'] . '"'
+                       . ' style="border:0;background:none;color:#a00;cursor:pointer;font-size:17px;min-width:32px" title="Aus dem Abo entfernen">&times;</button>' : '' );
+            }
+            echo '</div>';
         }
-        echo '</ul>';
+        if ( ! $beendet ) {
+            echo '<div style="font-size:12px;color:#777;margin-top:5px">Änderungen gelten ab der nächsten Lieferung. Neue Produkte fügst du über die Produktseiten hinzu (Abonnieren &rarr; „Zu bestehendem Abo").</div>';
+        }
+        echo '</div>';
         if ( ! $beendet ) {
             echo '<div style="display:flex;gap:8px;flex-wrap:wrap">'
                . '<button type="button" class="button bschi-abo-skip" data-id="' . (int) $a['id'] . '">Nächste Lieferung überspringen</button>'
@@ -403,6 +446,15 @@ function bschi_abo_account_tab() {
         call('bschi_abo_skip',b.dataset.id,'Die nächste Lieferung wird übersprungen. Fortfahren?');});});
       document.querySelectorAll('.bschi-abo-cancel').forEach(function(b){b.addEventListener('click',function(){
         call('bschi_abo_cancel',b.dataset.id,'Dein Abo wird zum Laufzeitende gekündigt und läuft bis dahin normal weiter. Jetzt kündigen?');});});
+      function itemsCall(fd){fd.append('action','bschi_abo_items');fd.append('nonce',nonce);
+        fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>',{method:'POST',body:fd,credentials:'same-origin'})
+        .then(function(r){return r.json();}).then(function(d){
+          if(d&&d.success){location.reload();}else{alert((d&&d.data)||'Fehler');}});}
+      document.querySelectorAll('.bschi-abo-item-qty').forEach(function(i){i.addEventListener('change',function(){
+        var fd=new FormData();fd.append('abo_id',i.dataset.abo);fd.append('item_id',i.dataset.item);fd.append('menge',i.value);itemsCall(fd);});});
+      document.querySelectorAll('.bschi-abo-item-del').forEach(function(b){b.addEventListener('click',function(){
+        if(!confirm('Produkt aus dem Abo entfernen (ab der nächsten Lieferung)?'))return;
+        var fd=new FormData();fd.append('abo_id',b.dataset.abo);fd.append('entfernen',b.dataset.item);itemsCall(fd);});});
     })();
     </script>
     <?php
@@ -430,6 +482,98 @@ function bschi_abo_acct_action( string $pfad, string $ok_msg ): void {
 }
 add_action( 'wp_ajax_bschi_abo_cancel', fn() => bschi_abo_acct_action( '/api/v1/shop/abo-kuendigen', 'Kündigung bestätigt – du erhältst eine E-Mail.' ) );
 add_action( 'wp_ajax_bschi_abo_skip', fn() => bschi_abo_acct_action( '/api/v1/shop/abo-ueberspringen', 'Lieferung übersprungen.' ) );
+
+// ── P3: Bestellung -> Abo (Mein Konto -> Bestellungen -> "Als Abo fortsetzen") ──
+add_filter( 'woocommerce_my_account_my_orders_actions', function ( $actions, $order ) {
+    if ( ! bschi_abo_aktiv() || ! is_user_logged_in() ) { return $actions; }
+    $hat_produkt = false;
+    foreach ( $order->get_items() as $li ) {
+        $p = $li->get_product();
+        if ( $p && $p->is_purchasable() && ! $p->is_virtual() ) { $hat_produkt = true; break; }
+    }
+    if ( $hat_produkt ) {
+        $actions['bschi_abo'] = [
+            'url'  => wp_nonce_url( add_query_arg( 'bschi_abo_von_bestellung', $order->get_id(),
+                                                   home_url( '/abo/' ) ), 'bschi_abo_von_b' ),
+            'name' => 'Als Abo fortsetzen',
+        ];
+    }
+    return $actions;
+}, 10, 2 );
+
+add_action( 'template_redirect', function () {
+    if ( empty( $_GET['bschi_abo_von_bestellung'] ) || ! bschi_abo_aktiv() || ! is_user_logged_in() ) { return; }
+    if ( ! wp_verify_nonce( $_GET['_wpnonce'] ?? '', 'bschi_abo_von_b' ) ) { return; }
+    $order = wc_get_order( (int) $_GET['bschi_abo_von_bestellung'] );
+    if ( ! $order || (int) $order->get_customer_id() !== get_current_user_id() ) { return; }
+    $uid = get_current_user_id();
+    $liste = bschi_abo_liste_get( $uid );
+    $drin = array_map( fn( $e ) => (int) $e[0], $liste );
+    foreach ( $order->get_items() as $li ) {
+        $p = $li->get_product();
+        if ( ! $p || ! $p->is_purchasable() || $p->is_virtual() ) { continue; }
+        $pid = $p->get_id();
+        if ( in_array( $pid, $drin, true ) ) { continue; }
+        $liste[] = [ $pid, max( 1, (int) $li->get_quantity() ) ];
+        $drin[] = $pid;
+    }
+    bschi_abo_liste_set( $uid, $liste );
+    wp_safe_redirect( remove_query_arg( [ 'bschi_abo_von_bestellung', '_wpnonce' ] ) );
+    exit;
+}, 9 );
+
+// ── P3: Produkte/Mengen eines laufenden Abos ändern (Mein Konto) ─────────────
+add_action( 'wp_ajax_bschi_abo_items', function () {
+    $n = $_POST['nonce'] ?? '';
+    if ( ! bschi_abo_aktiv() || ! is_user_logged_in()
+         || ( ! wp_verify_nonce( $n, 'bschi_abo_acct' ) && ! wp_verify_nonce( $n, 'bschi_abo' ) ) ) {
+        wp_send_json_error( 'Sitzung abgelaufen' );
+    }
+    $body = [ 'email' => wp_get_current_user()->user_email,
+              'abo_id' => (int) ( $_POST['abo_id'] ?? 0 ) ];
+    if ( isset( $_POST['entfernen'] ) ) { $body['entfernen'] = [ (int) $_POST['entfernen'] ]; }
+    if ( isset( $_POST['item_id'], $_POST['menge'] ) ) {
+        $body['mengen'] = [ [ 'item_id' => (int) $_POST['item_id'], 'menge' => (int) $_POST['menge'] ] ];
+    }
+    if ( ! empty( $_POST['hinzu_pid'] ) ) {
+        $p = wc_get_product( (int) $_POST['hinzu_pid'] );
+        if ( ! $p || ! $p->is_purchasable() ) { wp_send_json_error( 'Produkt nicht verfügbar' ); }
+        $body['hinzu'] = [ [ 'sku' => $p->get_sku() ?: (string) $p->get_id(), 'name' => $p->get_name(),
+                             'menge' => max( 1, (int) ( $_POST['hinzu_menge'] ?? 1 ) ),
+                             'preis' => (float) wc_get_price_including_tax( $p ) ] ];
+    }
+    $ep = bschi_hub_url( '/api/v1/shop/abo-items' );
+    if ( ! $ep ) { wp_send_json_error( 'Nicht verfügbar' ); }
+    $r = wp_remote_post( $ep, [ 'timeout' => 15, 'headers' => bschi_hub_headers(),
+                                'body' => wp_json_encode( $body ) ] );
+    if ( is_wp_error( $r ) ) { wp_send_json_error( 'Verbindungsfehler' ); }
+    $d = json_decode( wp_remote_retrieve_body( $r ), true );
+    if ( wp_remote_retrieve_response_code( $r ) === 200 && ! empty( $d['ok'] ) ) {
+        wp_send_json_success( 'Gespeichert – gilt ab der nächsten Lieferung.' );
+    }
+    wp_send_json_error( $d['detail'] ?? 'Änderung fehlgeschlagen' );
+} );
+
+// Produktseite: "Zu bestehendem Abo hinzufügen" (Ziele lazy laden)
+add_action( 'wp_ajax_bschi_abo_targets', function () {
+    if ( ! bschi_abo_aktiv() || ! wp_verify_nonce( $_POST['nonce'] ?? '', 'bschi_abo' ) ) {
+        wp_send_json_error( 'Sitzung abgelaufen' );
+    }
+    $ep = bschi_hub_url( '/api/v1/shop/abos' );
+    if ( ! $ep ) { wp_send_json_error( 'Nicht verfügbar' ); }
+    $r = wp_remote_post( $ep, [ 'timeout' => 10, 'headers' => bschi_hub_headers(),
+        'body' => wp_json_encode( [ 'email' => wp_get_current_user()->user_email ] ) ] );
+    if ( is_wp_error( $r ) ) { wp_send_json_error( 'Verbindungsfehler' ); }
+    $abos = json_decode( wp_remote_retrieve_body( $r ), true )['items'] ?? [];
+    $ziele = [];
+    foreach ( $abos as $a ) {
+        if ( in_array( $a['status'], [ 'aktiv', 'gekuendigt' ], true ) ) {
+            $ziele[] = [ 'id' => (int) $a['id'],
+                         'label' => 'Abo #' . (int) $a['id'] . ' (' . $a['intervall_txt'] . ', ' . count( $a['items'] ) . ' Produkte)' ];
+        }
+    }
+    wp_send_json_success( $ziele );
+} );
 
 // ── Shortcode: gesetzliche Kündigungsschaltfläche ────────────────────────────
 add_shortcode( 'bsc_abo_kuendigung', function (): string {
