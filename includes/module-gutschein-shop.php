@@ -1044,15 +1044,72 @@ function bschi_gs_virtual_coupon( $data, $code ) {
     ];
 }
 
-// Warenkorb/Kasse: konfiguriertes Design als Produktbild anzeigen (Thumb vom Hub)
+// Warenkorb/Kasse: konfiguriertes Design als Produktbild anzeigen (Thumb vom Hub).
+// Klassisches Cart-Template: Filter unten. Cart-/Checkout-BLOCK (Store API) nutzt die
+// PHP-Filter NICHT -> Thumb einmalig als WP-Medienanhang sideloaden und dem
+// Warenkorb-Produktobjekt als Bild zuweisen (wirkt in Block UND Klassik).
+function bschi_gs_design_attachment( string $design ): int {
+    $design = sanitize_key( $design );
+    if ( ! $design ) {
+        return 0;
+    }
+    $map = get_option( 'bschi_gs_thumb_attachments', [] );
+    $eintrag = $map[ $design ] ?? null;
+    // 7 Tage cachen; danach neu laden (Design koennte sich geaendert haben)
+    if ( is_array( $eintrag ) && ! empty( $eintrag['id'] )
+         && ( time() - (int) ( $eintrag['time'] ?? 0 ) ) < 7 * DAY_IN_SECONDS
+         && wp_attachment_is_image( $eintrag['id'] ) ) {
+        return (int) $eintrag['id'];
+    }
+    $url = bschi_hub_url( '/static/gutschein-thumbs/' . $design . '.png' );
+    if ( ! $url ) {
+        return is_array( $eintrag ) ? (int) ( $eintrag['id'] ?? 0 ) : 0;
+    }
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    $id = media_sideload_image( $url, 0, 'Gutschein-Design ' . $design, 'id' );
+    if ( is_wp_error( $id ) ) {
+        // Fehlversuch merken (10 Min Pause), alte ID weiterverwenden falls vorhanden
+        $map[ $design ] = [ 'id' => is_array( $eintrag ) ? (int) ( $eintrag['id'] ?? 0 ) : 0,
+                            'time' => time() - 7 * DAY_IN_SECONDS + 10 * MINUTE_IN_SECONDS ];
+        update_option( 'bschi_gs_thumb_attachments', $map, false );
+        return (int) $map[ $design ]['id'];
+    }
+    // Alten Anhang aufraeumen
+    if ( is_array( $eintrag ) && ! empty( $eintrag['id'] ) && (int) $eintrag['id'] !== (int) $id ) {
+        wp_delete_attachment( (int) $eintrag['id'], true );
+    }
+    $map[ $design ] = [ 'id' => (int) $id, 'time' => time() ];
+    update_option( 'bschi_gs_thumb_attachments', $map, false );
+    return (int) $id;
+}
+
+add_action( 'woocommerce_before_calculate_totals', function ( $cart ) {
+    if ( ! bschi_feature_enabled( 'gutschein_shop' ) ) {
+        return;
+    }
+    foreach ( $cart->get_cart() as $item ) {
+        $design = $item['bschi_gutschein']['design'] ?? '';
+        if ( $design ) {
+            $aid = bschi_gs_design_attachment( $design );
+            if ( $aid ) {
+                $item['data']->set_image_id( $aid );
+            }
+        }
+    }
+}, 25 );
+
+// Klassisches Cart-Template zusaetzlich direkt
 add_filter( 'woocommerce_cart_item_thumbnail', function ( $img, $item ) {
     $design = $item['bschi_gutschein']['design'] ?? '';
     if ( $design ) {
-        $url = bschi_hub_url( '/static/gutschein-thumbs/' . sanitize_key( $design ) . '.png' );
-        if ( $url ) {
-            return '<img src="' . esc_url( $url ) . '" alt="Gutschein-Design" '
-                 . 'style="width:64px;height:auto;border:1px solid #ddd;border-radius:6px" '
-                 . 'onerror="this.style.display=&quot;none&quot;">';
+        $aid = bschi_gs_design_attachment( $design );
+        if ( $aid ) {
+            $neu = wp_get_attachment_image( $aid, 'woocommerce_thumbnail' );
+            if ( $neu ) {
+                return $neu;
+            }
         }
     }
     return $img;
