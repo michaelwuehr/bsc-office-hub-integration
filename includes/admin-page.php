@@ -290,7 +290,7 @@ function bschi_render_admin_page(): void {
                             Öffnungszeiten-Banner <code>[bsc_offen_banner]</code>
                             <span style="color:#777;font-size:12px">– Optionen: <code>stil="text"</code> (reine Textzeile, passt sich dem Theme an),
                             <code>groesse="16"</code> (px), <code>farbe="#333333"</code>, <code>farbe_offen="#2e9e5b"</code>,
-                            <code>farbe_zu="#c0392b"</code>, <code>punkt="aus"</code>, <code>standort="loc-th"</code></span></label><br>
+                            <code>farbe_zu="#c0392b"</code>, <code>punkt="aus"</code>, <code>ausrichtung="mitte"</code> (links/mitte/rechts), <code>standort="loc-th"</code></span></label><br>
                         <label><input type="checkbox" name="feature_exit_popup" value="1" <?= checked( $s['feature_exit_popup'] ?? false, true, false ); ?>>
                             Exit-Intent-Popup (Regeln im Marketing Hub → Newsletter-Bereich)</label><br>
                         <label><input type="checkbox" name="feature_social_feed" value="1" <?= checked( $s['feature_social_feed'] ?? false, true, false ); ?>>

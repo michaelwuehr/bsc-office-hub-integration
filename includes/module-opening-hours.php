@@ -29,6 +29,7 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 		'farbe_offen' => '#2e9e5b', // Statusfarbe geoeffnet (Punkt)
 		'farbe_zu'    => '#c0392b', // Statusfarbe geschlossen (Punkt)
 		'punkt'       => 'an',      // an | aus - roter/gruener Punkt
+		'ausrichtung' => '',        // links | mitte | rechts (leer = Fliesstext/Standard)
 	], $atts, 'bsc_offen_banner' );
 	$data = bschi_hub_get( '/api/v1/shop/oeffnungszeiten', BSCHI_OZ_CACHE_TTL );
 	if ( empty( $data['standorte'] ) ) {
@@ -47,17 +48,26 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 	$f_offen   = $hex( $a['farbe_offen'], '#2e9e5b' );
 	$f_zu      = $hex( $a['farbe_zu'], '#c0392b' );
 
+	$aus_flex = [ 'links' => 'flex-start', 'mitte' => 'center', 'rechts' => 'flex-end' ][ $a['ausrichtung'] ] ?? '';
+	$aus_text = [ 'links' => 'left', 'mitte' => 'center', 'rechts' => 'right' ][ $a['ausrichtung'] ] ?? '';
 	if ( $stil_text ) {
-		// Reine Textzeile: kein Hintergrund/Rahmen, erbt Theme-Schrift und -Farbe
-		$css = 'display:none;align-items:center;gap:7px;line-height:1.4'
+		// Reine Textzeile: kein Hintergrund/Rahmen, erbt Theme-Schrift und -Farbe.
+		// max-width verhindert Ueberlaufen, der Text bricht im Container um.
+		$css = 'display:none;align-items:center;gap:7px;line-height:1.4;max-width:100%'
 			 . ( $groesse ? ';font-size:' . $groesse . 'px' : '' )
 			 . ( $farbe ? ';color:' . $farbe : '' );
 		$anzeige = $punkt_an ? 'inline-flex' : 'inline';
+		if ( $aus_flex ) {
+			// Mit Ausrichtung wird die Zeile blockbreit und richtet sich selbst aus
+			$css    .= ';width:100%;justify-content:' . $aus_flex . ';text-align:' . $aus_text;
+			$anzeige = 'flex';
+		}
 	} else {
 		$css = 'display:none;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;line-height:1.4;'
 			 . 'background:#f4f1ec;border:1px solid #d8d0c4'
 			 . ';font-size:' . ( $groesse ?: 14 ) . 'px'
-			 . ';color:' . ( $farbe ?: '#1a1a18' );
+			 . ';color:' . ( $farbe ?: '#1a1a18' )
+			 . ( $aus_flex ? ';justify-content:' . $aus_flex . ';text-align:' . $aus_text : '' );
 		$anzeige = 'flex';
 	}
 	$json = wp_json_encode( $data );
@@ -69,7 +79,7 @@ add_shortcode( 'bsc_offen_banner', function ( $atts ): string {
 		<?php if ( $punkt_an ) : ?>
 		<span class="bschi-oz-dot" style="width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block;background:#999"></span>
 		<?php endif; ?>
-		<span class="bschi-oz-text"></span>
+		<span class="bschi-oz-text" style="min-width:0;overflow-wrap:break-word"></span>
 	</<?php echo $stil_text ? 'span' : 'div'; ?>>
 	<script>
 	(function(){
