@@ -1425,3 +1425,40 @@ function bschi_gs_pdf_download() {
     echo wp_remote_retrieve_body( $resp );
     exit;
 }
+
+// ─── Kundenkonto-Prüfung (Office fragt: gibt es zu dieser Adresse ein Konto?) ─
+//
+// Der Hub darf den Kundenkonto-Hinweis samt QR nur dann auf Gutschein und Bon
+// drucken, wenn die Empfängerin ihre Gutscheine dort auch wirklich sehen kann.
+
+add_action( 'rest_api_init', function () {
+    register_rest_route( 'bschi/v1', '/kunde-pruefen', [
+        'methods'             => 'POST',
+        'callback'            => 'bschi_gs_kunde_pruefen',
+        'permission_callback' => 'bschi_voucher_permission',   // X-BSCHI-Secret
+    ] );
+} );
+
+function bschi_gs_kunde_pruefen( WP_REST_Request $request ) {
+    $mails = $request->get_param( 'emails' );
+    if ( ! is_array( $mails ) ) {
+        $einzeln = $request->get_param( 'email' );
+        $mails   = $einzeln ? [ $einzeln ] : [];
+    }
+    $out = [];
+    foreach ( array_slice( $mails, 0, 100 ) as $mail ) {
+        $mail = sanitize_email( (string) $mail );
+        if ( ! $mail || ! is_email( $mail ) ) {
+            continue;
+        }
+        $user = get_user_by( 'email', $mail );
+        $eintrag = [ 'email' => $mail, 'konto' => (bool) $user ];
+        if ( $user ) {
+            $eintrag['user_id'] = (int) $user->ID;
+            // Anzeigename nur zur Kontrolle im Hub – keine weiteren Kundendaten
+            $eintrag['name'] = $user->display_name ?: '';
+        }
+        $out[] = $eintrag;
+    }
+    return new WP_REST_Response( [ 'ok' => true, 'kunden' => $out ], 200 );
+}
