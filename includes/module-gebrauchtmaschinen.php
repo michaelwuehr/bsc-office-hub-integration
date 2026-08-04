@@ -504,6 +504,23 @@ function bschi_gm_styles(): void {
     .bschi-gm__pdfs li{margin-bottom:5px}
     .bschi-gm__kontakt{margin-top:18px;padding-top:12px;border-top:1px solid #eceae4;
       font-size:.9em;color:#6d6b62}
+    /* Mobil: Bottom-Sheet statt schwebender Karte (wie Pflanzenflohmarkt) */
+    @media(max-width:640px){
+      .bschi-gm__overlay{padding:0;align-items:flex-end;overflow:hidden}
+      .bschi-gm__modal{max-width:none;width:100%;margin:0;border-radius:18px 18px 0 0;
+        max-height:calc(100dvh - 6vh);overflow-y:auto;-webkit-overflow-scrolling:touch;
+        padding:10px 16px calc(28px + env(safe-area-inset-bottom,0px))}
+      .bschi-gm__modal::before{content:"";display:block;width:44px;height:4px;border-radius:2px;
+        background:#d8d6cf;margin:2px auto 10px}
+      .bschi-gm__close{position:sticky;top:6px;float:right;background:#f2f1ec;border-radius:50%;
+        width:40px;height:40px;font-size:24px;line-height:40px;padding:0;text-align:center;
+        z-index:5;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+      .bschi-gm__galerie img#bschi-gm-hauptbild{max-height:280px}
+      .bschi-gm__d-titel{font-size:1.3em}
+      .bschi-gm__cta{gap:10px}
+      .bschi-gm__kaufen{flex:1;text-align:center;padding:15px 10px}
+      .bschi-gm__anfragen{flex:1;padding:13px 10px}
+    }
     </style>
     <?php
 }
