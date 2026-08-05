@@ -159,6 +159,24 @@ function bschi_render_admin_page(): void {
         echo '<div class="notice notice-info inline"><p>Alle Checks abgeschlossen.</p></div>';
     }
 
+    // Plugin-Update: GitHub-Release-Cache (6 h) leeren + WP-Update-Check sofort anstoßen
+    if ( isset( $_POST['bschi_update_check'] ) && check_admin_referer( 'bschi_update_check' ) ) {
+        delete_transient( BSCHI_UPDATE_TRANSIENT );
+        delete_site_transient( 'update_plugins' );
+        wp_update_plugins();
+        $rel = bschi_fetch_github_release();
+        if ( $rel && version_compare( $rel->version, BSCHI_VERSION, '>' ) ) {
+            echo '<div class="notice notice-success inline"><p>Update gefunden: Version '
+                . esc_html( $rel->version ) . ' ist verfügbar – jetzt unter <a href="'
+                . esc_url( self_admin_url( 'plugins.php' ) ) . '">Plugins</a> aktualisieren.</p></div>';
+        } elseif ( $rel ) {
+            echo '<div class="notice notice-info inline"><p>Kein Update verfügbar – installierte Version '
+                . esc_html( BSCHI_VERSION ) . ' ist aktuell (neuestes Release: v' . esc_html( $rel->version ) . ').</p></div>';
+        } else {
+            echo '<div class="notice notice-error inline"><p>GitHub-Release konnte nicht abgerufen werden – bitte später erneut versuchen.</p></div>';
+        }
+    }
+
     // Sale-Banner-Cache leeren + neu laden
     $sale_preview = null;
     if ( isset( $_POST['bschi_sale_refresh'] ) && check_admin_referer( 'bschi_sale_refresh' ) ) {
@@ -177,6 +195,13 @@ function bschi_render_admin_page(): void {
     <div class="wrap">
         <h1>BSC - Office Hub Integration</h1>
         <p>Verbindet diesen Shop mit dem BSC Office Hub: Monitoring, Doppelbestellungs-Erkennung, Sale-Banner, Kundendokumente, Preislisten und Chat.</p>
+
+        <form method="post" style="margin:0 0 16px">
+            <?php wp_nonce_field( 'bschi_update_check' ); ?>
+            <input type="hidden" name="bschi_update_check" value="1">
+            <button type="submit" class="button">Jetzt nach Plugin-Updates suchen</button>
+            <span style="color:#666;margin-left:6px">Installiert: v<?php echo esc_html( BSCHI_VERSION ); ?></span>
+        </form>
 
         <?php if ( bschi_feature_enabled( 'monitoring' ) ) : ?>
         <form method="post" style="margin-bottom:16px">
