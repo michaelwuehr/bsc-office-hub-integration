@@ -55,36 +55,85 @@ function bschi_abo_liste_set( int $user_id, array $liste ): void {
     update_user_meta( $user_id, BSCHI_ABO_META, array_values( $liste ) );
 }
 
+// ── "Wie funktioniert das Abo?" – Link + Modal (Produktseite + Abo-Liste) ────
+function bschi_abo_info_html(): string {
+    $cfg = bschi_abo_config();
+    $staffel = $cfg['rabatt_staffel'] ?? [];
+    $stufen = [];
+    foreach ( ( $cfg['laufzeiten'] ?? [] ) as $lz ) {
+        $r = (float) ( $staffel[ (string) $lz ] ?? 0 );
+        $stufen[] = (int) $lz . ' Monate' . ( $r > 0 ? ' = ' . rtrim( rtrim( number_format( $r, 1, ',', '' ), '0' ), ',' ) . ' % Rabatt' : '' );
+    }
+    $frei = (float) ( $cfg['versand_frei_ab'] ?? 0 );
+    $schritt = static fn( $nr, $titel, $txt ) => '<div style="display:flex;gap:12px;margin-bottom:14px">'
+        . '<span style="flex:none;width:26px;height:26px;border-radius:50%;background:#5a6b52;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">' . $nr . '</span>'
+        . '<div style="font-size:14px;line-height:1.45"><b>' . $titel . '</b><br><span style="color:#555">' . $txt . '</span></div></div>';
+    return '<div style="font-size:13px;margin-top:8px"><a href="#" class="bschi-abo-info-link" style="color:#5a6b52;text-decoration:underline">Wie funktioniert das Abo?</a></div>'
+        . '<div id="bschi-abo-info" style="display:none;position:fixed;inset:0;background:rgba(25,30,20,.55);z-index:99999;padding:20px;overflow:auto">'
+        . '<div style="max-width:520px;margin:8vh auto 0;background:#fff;border-radius:16px;padding:26px 24px 20px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+        . '<button type="button" id="bschi-abo-info-x" style="position:absolute;top:10px;right:12px;border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:#888;padding:4px" aria-label="Schließen">&times;</button>'
+        . '<h4 style="margin:0 0 18px;font-size:20px">So funktioniert das Abo</h4>'
+        . $schritt( 1, 'Produkte sammeln', 'Mit „Abonnieren“ legst du Produkte auf deine Abo-Liste – so viele du magst.' )
+        . $schritt( 2, 'Rhythmus &amp; Laufzeit wählen', 'Lieferung monatlich, alle 2 oder alle 3 Monate. Je länger die Laufzeit, desto mehr Rabatt: ' . esc_html( implode( ' · ', $stufen ) ) . '.' )
+        . $schritt( 3, 'Einmal zur Kasse', 'Die erste Lieferung bestellst und bezahlst du ganz normal im Shop – der Abo-Rabatt ist dabei schon abgezogen.' )
+        . $schritt( 4, 'Automatisch beliefert', 'Alle weiteren Lieferungen kommen von selbst im gewählten Rhythmus. Unter Mein Konto &rarr; Abos kannst du Lieferungen überspringen, Produkte und Mengen ändern oder mit einem Klick kündigen – wirksam zum Laufzeitende.' )
+        . ( $frei > 0 ? '<div style="background:#f2f6ef;border-radius:10px;padding:10px 12px;font-size:13px;color:#444">Versandkostenfrei ab ' . esc_html( rtrim( rtrim( number_format( $frei, 2, ',', '.' ), '0' ), ',' ) ) . ' € Warenwert je Lieferung.</div>' : '' )
+        . '</div></div>'
+        . '<script>(function(){var ib=document.getElementById("bschi-abo-info");if(!ib)return;'
+        . 'document.querySelectorAll(".bschi-abo-info-link").forEach(function(l){l.addEventListener("click",function(e){e.preventDefault();ib.style.display="block";});});'
+        . 'document.getElementById("bschi-abo-info-x").addEventListener("click",function(){ib.style.display="none";});'
+        . 'ib.addEventListener("click",function(e){if(e.target===ib)ib.style.display="none";});})();</script>';
+}
+
 // ── Produktseite: "Abonnieren"-Button ────────────────────────────────────────
 add_action( 'woocommerce_after_add_to_cart_button', function () {
     if ( ! bschi_abo_aktiv() ) { return; }
     global $product;
     if ( ! $product || ! $product->is_purchasable() || $product->is_virtual() ) { return; }
     $pid = $product->get_id();
+    $variabel = $product->is_type( 'variable' );
     if ( is_user_logged_in() ) {
         $drauf = false;
         foreach ( bschi_abo_liste_get( get_current_user_id() ) as $e ) {
-            if ( (int) $e[0] === $pid ) { $drauf = true; break; }
+            $eid = (int) $e[0];
+            if ( $eid === $pid ) { $drauf = true; break; }
+            if ( $variabel ) {
+                $v = wc_get_product( $eid );
+                if ( $v && (int) $v->get_parent_id() === $pid ) { $drauf = true; break; }
+            }
         }
         $label = $drauf ? 'Auf der Abo-Liste' : 'Abonnieren';
-        echo '<button type="button" id="bschi-abo-add" data-pid="' . esc_attr( $pid ) . '" ' . ( $drauf ? 'disabled' : '' )
-           . ' style="margin-left:8px;padding:.618em 1em;border:2px solid #5a6b52;border-radius:4px;background:#fff;color:#5a6b52;font-weight:700;cursor:pointer">'
+        // Optik wie der "In den Warenkorb"-Button (Theme-Klassen), nur etwas kleiner.
+        echo '<button type="button" id="bschi-abo-add" class="button alt" data-pid="' . esc_attr( $pid ) . '"'
+           . ' data-variabel="' . ( $variabel ? '1' : '0' ) . '" ' . ( $drauf ? 'disabled' : '' )
+           . ' style="margin-left:8px;padding:.5em 1.1em;font-size:.9em">'
            . esc_html( $label ) . '</button>'
            . '<div id="bschi-abo-msg" style="font-size:12px;color:#5a6b52;margin-top:6px"></div>'
            . '<div style="font-size:12px;margin-top:2px"><a href="#" id="bschi-abo-addto" style="color:#5a6b52">Zu bestehendem Abo hinzufügen</a>'
            . '<span id="bschi-abo-addto-box" style="display:none"></span></div>';
+        echo bschi_abo_info_html();
         ?>
         <script>
         (function(){var b=document.getElementById('bschi-abo-add');if(!b)return;
+        function pidWahl(){
+          if(b.dataset.variabel==='1'){
+            var v=document.querySelector('form.cart input[name=variation_id], input.variation_id');
+            var vid=v?parseInt(v.value||'0',10):0;
+            return vid>0?vid:0;
+          }
+          return parseInt(b.dataset.pid,10);
+        }
         b.addEventListener('click',function(){
-          var fd=new FormData();fd.append('action','bschi_abo_add');fd.append('pid',b.dataset.pid);
+          var m=document.getElementById('bschi-abo-msg');
+          var pid=pidWahl();
+          if(!pid){m.textContent='Bitte wähle zuerst die Produktoptionen aus.';return;}
+          var fd=new FormData();fd.append('action','bschi_abo_add');fd.append('pid',pid);
           var q=document.querySelector('form.cart input.qty');fd.append('menge',q&&q.value?q.value:'1');
           fd.append('nonce','<?php echo esc_js( wp_create_nonce( 'bschi_abo' ) ); ?>');
           b.disabled=true;b.textContent='…';
           fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>',{method:'POST',body:fd,credentials:'same-origin'})
           .then(function(r){return r.json();}).then(function(d){
             b.textContent=d&&d.success?'Auf der Abo-Liste':'Abonnieren';
-            var m=document.getElementById('bschi-abo-msg');
             if(d&&d.success){m.innerHTML='Gemerkt. <a href="<?php echo esc_js( esc_url( home_url( '/abo/' ) ) ); ?>">Zur Abo-Liste</a>';}
             else{b.disabled=false;m.textContent=(d&&d.data)||'Fehler';}
           });
@@ -104,8 +153,10 @@ add_action( 'woocommerce_after_add_to_cart_button', function () {
             var ok=document.createElement('button');ok.type='button';ok.textContent='Hinzufügen';
             ok.style.cssText='margin-left:6px;padding:6px 12px;border:0;border-radius:6px;background:#5a6b52;color:#fff;cursor:pointer';
             ok.addEventListener('click',function(){
+              var pid=pidWahl();
+              if(!pid){box.textContent='Bitte wähle zuerst die Produktoptionen aus.';ok.disabled=false;return;}
               var fd2=new FormData();fd2.append('action','bschi_abo_items');fd2.append('abo_id',sel.value);
-              fd2.append('hinzu_pid',b.dataset.pid);
+              fd2.append('hinzu_pid',pid);
               var q=document.querySelector('form.cart input.qty');fd2.append('hinzu_menge',q&&q.value?q.value:'1');
               fd2.append('nonce','<?php echo esc_js( wp_create_nonce( 'bschi_abo' ) ); ?>');
               ok.disabled=true;ok.textContent='…';
@@ -119,9 +170,10 @@ add_action( 'woocommerce_after_add_to_cart_button', function () {
         </script>
         <?php
     } else {
-        echo '<a href="' . esc_url( wc_get_page_permalink( 'myaccount' ) ) . '" '
-           . 'style="display:inline-block;margin-left:8px;padding:.618em 1em;border:2px solid #5a6b52;border-radius:4px;color:#5a6b52;font-weight:700;text-decoration:none">Abonnieren</a>'
+        echo '<a href="' . esc_url( wc_get_page_permalink( 'myaccount' ) ) . '" class="button alt" '
+           . 'style="margin-left:8px;padding:.5em 1.1em;font-size:.9em;text-decoration:none">Abonnieren</a>'
            . '<div style="font-size:12px;color:#777;margin-top:6px">Zum Abonnieren bitte anmelden.</div>';
+        echo bschi_abo_info_html();
     }
 }, 15 );
 
@@ -157,8 +209,26 @@ add_action( 'wp_ajax_bschi_abo_liste', function () {
         $m = max( 1, min( 50, (int) ( $_POST['menge'] ?? 1 ) ) );
         foreach ( $liste as &$e ) { if ( (int) $e[0] === $pid ) { $e[1] = $m; } }
         unset( $e );
+    } elseif ( 'variante' === $aktion ) {
+        // Variables Eltern-Produkt auf der Liste durch die gewählte Variante ersetzen.
+        $vid = (int) ( $_POST['vid'] ?? 0 );
+        $v = wc_get_product( $vid );
+        if ( ! $v || ! $v->is_type( 'variation' ) || ! $v->is_purchasable()
+             || (int) $v->get_parent_id() !== $pid ) {
+            wp_send_json_error( 'Variante nicht verfügbar' );
+        }
+        foreach ( $liste as &$e ) { if ( (int) $e[0] === $pid ) { $e[0] = $vid; } }
+        unset( $e );
     }
-    bschi_abo_liste_set( $uid, $liste );
+    // Doppelte Einträge (z. B. Variante war schon separat drauf) zusammenführen.
+    $gesehen = []; $bereinigt = [];
+    foreach ( $liste as $e ) {
+        $k = (int) $e[0];
+        if ( isset( $gesehen[ $k ] ) ) { continue; }
+        $gesehen[ $k ] = 1;
+        $bereinigt[] = $e;
+    }
+    bschi_abo_liste_set( $uid, $bereinigt );
     wp_send_json_success();
 } );
 
@@ -171,11 +241,17 @@ add_shortcode( 'bsc_abo_liste', function (): string {
     $cfg = bschi_abo_config();
     $liste = bschi_abo_liste_get( get_current_user_id() );
     ob_start();
-    echo '<div style="max-width:680px">';
-    echo '<h3 style="margin:0 0 4px">Deine Abo-Liste</h3>';
-    echo '<p style="color:#666;font-size:13px;margin:0 0 14px">Produkte sammeln, Lieferrhythmus und Laufzeit wählen – längere Laufzeit = mehr Rabatt auf jede Lieferung.</p>';
+    // Zentrierte, prominente Karte statt schmaler linksbündiger Liste.
+    echo '<div style="max-width:760px;margin:0 auto 28px">';
+    echo '<div style="background:#fff;border:1px solid #e6e9e2;border-radius:18px;box-shadow:0 12px 34px rgba(50,60,40,.09);padding:28px 26px 24px">';
+    echo '<h3 style="margin:0 0 6px;font-size:clamp(22px,4vw,28px);text-align:center">Deine Abo-Liste</h3>';
+    echo '<p style="color:#666;font-size:14px;margin:0 0 20px;text-align:center">Produkte sammeln, Lieferrhythmus und Laufzeit wählen – längere Laufzeit = mehr Rabatt auf jede Lieferung.</p>';
     if ( ! $liste ) {
-        echo '<p>Deine Abo-Liste ist noch leer. Nutze den Button <b>Abonnieren</b> auf den Produktseiten.</p></div>';
+        echo '<div style="text-align:center;padding:26px 10px;background:#f7f8f5;border-radius:12px">'
+           . '<p style="margin:0 0 6px;font-weight:600">Deine Abo-Liste ist noch leer.</p>'
+           . '<p style="margin:0;font-size:14px;color:#666">Nutze den Button <b>Abonnieren</b> auf den Produktseiten.</p></div>';
+        echo bschi_abo_info_html();
+        echo '</div></div>';
         return ob_get_clean();
     }
     $warenwert = 0.0;
@@ -185,20 +261,34 @@ add_shortcode( 'bsc_abo_liste', function (): string {
         if ( ! $p ) { continue; }
         $preis = (float) wc_get_price_including_tax( $p );
         $warenwert += $preis * (int) $e[1];
-        echo '<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eee" data-pid="' . esc_attr( $p->get_id() ) . '">'
-           . '<div style="width:52px;flex:none">' . $p->get_image( [ 52, 52 ] ) . '</div>'
-           . '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">' . esc_html( $p->get_name() ) . '</div>'
-           . '<div style="font-size:12px;color:#777">' . wp_kses_post( wc_price( $preis ) ) . ' / Stück</div></div>'
-           . '<input type="number" class="bschi-abo-qty" min="1" max="50" value="' . esc_attr( (int) $e[1] ) . '" style="width:64px;padding:6px;border:1px solid #ccc;border-radius:6px">'
-           . '<button type="button" class="bschi-abo-del" style="border:0;background:none;color:#a00;cursor:pointer;font-size:18px" title="Entfernen">&times;</button>'
+        $detail = '<div style="font-size:13px;color:#777;margin-top:2px">' . wp_kses_post( wc_price( $preis ) ) . ' / Stück</div>';
+        if ( $p->is_type( 'variable' ) ) {
+            // Alt-Einträge ohne gewählte Variante: Auswahl direkt in der Liste.
+            $opts = '<option value="">Bitte Variante wählen …</option>';
+            foreach ( $p->get_available_variations() as $v ) {
+                $vp = wc_get_product( $v['variation_id'] );
+                if ( ! $vp || ! $vp->is_purchasable() ) { continue; }
+                $txt = wc_get_formatted_variation( $vp, true, false, false );
+                $opts .= '<option value="' . esc_attr( (int) $v['variation_id'] ) . '">'
+                       . esc_html( $txt ?: ( 'Variante #' . (int) $v['variation_id'] ) ) . '</option>';
+            }
+            $detail = '<div style="margin-top:5px"><select class="bschi-abo-var" style="width:100%;max-width:280px;padding:7px 9px;border:1px solid #d8b04a;border-radius:8px;font-size:13px;background:#fffdf5">' . $opts . '</select>'
+                    . '<div style="font-size:12px;color:#a07408;margin-top:3px">Bitte wähle eine Variante, damit das Abo abgeschlossen werden kann.</div></div>';
+        }
+        echo '<div style="display:flex;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid #eef0ec" data-pid="' . esc_attr( $p->get_id() ) . '">'
+           . '<div style="width:64px;flex:none;border-radius:10px;overflow:hidden">' . $p->get_image( [ 64, 64 ] ) . '</div>'
+           . '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;line-height:1.3">' . esc_html( $p->get_name() ) . '</div>'
+           . $detail . '</div>'
+           . '<input type="number" class="bschi-abo-qty" min="1" max="50" value="' . esc_attr( (int) $e[1] ) . '" style="width:66px;padding:8px 6px;border:1px solid #ccc;border-radius:8px;text-align:center">'
+           . '<button type="button" class="bschi-abo-del" style="border:0;background:none;color:#a00;cursor:pointer;font-size:19px;padding:4px 6px" title="Entfernen">&times;</button>'
            . '</div>';
     }
     echo '</div>';
     $staffel = $cfg['rabatt_staffel'];
-    echo '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 6px">'
-       . '<label style="flex:1;min-width:150px;font-size:13px">Lieferrhythmus<br><select id="bschi-abo-int" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px">'
+    echo '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:20px 0 12px">'
+       . '<label style="flex:1;min-width:160px;font-size:13px;font-weight:600">Lieferrhythmus<br><select id="bschi-abo-int" style="width:100%;margin-top:4px;padding:10px;border:1px solid #ccc;border-radius:10px;font-size:14px;font-weight:400;background:#fff">'
        . '<option value="1">monatlich</option><option value="2">alle 2 Monate</option><option value="3">alle 3 Monate</option></select></label>'
-       . '<label style="flex:1;min-width:150px;font-size:13px">Laufzeit<br><select id="bschi-abo-lz" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px">';
+       . '<label style="flex:1;min-width:160px;font-size:13px;font-weight:600">Laufzeit<br><select id="bschi-abo-lz" style="width:100%;margin-top:4px;padding:10px;border:1px solid #ccc;border-radius:10px;font-size:14px;font-weight:400;background:#fff">';
     foreach ( $cfg['laufzeiten'] as $lz ) {
         $r = (float) ( $staffel[ (string) $lz ] ?? 0 );
         echo '<option value="' . esc_attr( $lz ) . '" data-rabatt="' . esc_attr( $r ) . '">' . esc_html( $lz ) . ' Monate'
@@ -206,13 +296,14 @@ add_shortcode( 'bsc_abo_liste', function (): string {
     }
     echo '</select></label></div>';
     echo '<div id="bschi-abo-summe" data-warenwert="' . esc_attr( number_format( $warenwert, 2, '.', '' ) ) . '" data-frei="' . esc_attr( (float) $cfg['versand_frei_ab'] ) . '"'
-       . ' style="background:#f5f7f4;border-radius:10px;padding:12px;font-size:14px;margin-bottom:12px"></div>'
-       . '<div style="font-size:12px;color:#777;margin-bottom:12px">Die Laufzeit ist nach dem Abschluss fest. Nach der Laufzeit verlängert sich dein Abo auf unbestimmte Zeit und ist dann monatlich kündbar. Kündigen kannst du jederzeit mit einem Klick in deinem Kundenkonto – wirksam zum Laufzeitende. Preise je Lieferung entsprechen den aktuellen Shop-Preisen abzüglich deines Abo-Rabatts.</div>'
-       . '<form method="post"><input type="hidden" name="bschi_abo_start" value="1">'
+       . ' style="background:#f2f6ef;border:1px solid #dfe7d8;border-radius:12px;padding:14px 16px;font-size:15px;margin-bottom:12px"></div>'
+       . '<div style="font-size:12px;color:#777;margin-bottom:16px">Die Laufzeit ist nach dem Abschluss fest. Nach der Laufzeit verlängert sich dein Abo auf unbestimmte Zeit und ist dann monatlich kündbar. Kündigen kannst du jederzeit mit einem Klick in deinem Kundenkonto – wirksam zum Laufzeitende. Preise je Lieferung entsprechen den aktuellen Shop-Preisen abzüglich deines Abo-Rabatts.</div>'
+       . '<form method="post" id="bschi-abo-form"><input type="hidden" name="bschi_abo_start" value="1">'
        . wp_nonce_field( 'bschi_abo_start', 'bschi_abo_nonce', true, false )
        . '<input type="hidden" name="bschi_abo_int_f" id="bschi-abo-int-f" value="1">'
        . '<input type="hidden" name="bschi_abo_lz_f" id="bschi-abo-lz-f" value="3">'
-       . '<button type="submit" style="padding:13px 26px;border:0;border-radius:10px;background:#5a6b52;color:#fff;font-weight:700;cursor:pointer">Abo abschließen &amp; zur Kasse</button></form>';
+       . '<button type="submit" style="width:100%;padding:15px 22px;border:0;border-radius:12px;background:#5a6b52;color:#fff;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 6px 16px rgba(90,107,82,.35)">Abo abschließen &amp; zur Kasse</button></form>';
+    echo bschi_abo_info_html();
     ?>
     <script>
     (function(){
@@ -241,11 +332,22 @@ add_shortcode( 'bsc_abo_liste', function (): string {
         var row=b.closest('[data-pid]');post('entfernen',row.dataset.pid).then(function(){location.reload();});});});
       document.querySelectorAll('.bschi-abo-qty').forEach(function(i){i.addEventListener('change',function(){
         var row=i.closest('[data-pid]');post('menge',row.dataset.pid,i.value).then(function(){location.reload();});});});
+      document.querySelectorAll('.bschi-abo-var').forEach(function(s){s.addEventListener('change',function(){
+        if(!s.value)return;var row=s.closest('[data-pid]');
+        var fd=new FormData();fd.append('action','bschi_abo_liste');fd.append('nonce',nonce);
+        fd.append('was','variante');fd.append('pid',row.dataset.pid);fd.append('vid',s.value);
+        fetch(ajax,{method:'POST',body:fd,credentials:'same-origin'}).then(function(){location.reload();});});});
+      var form=document.getElementById('bschi-abo-form');
+      if(form)form.addEventListener('submit',function(e){
+        var fehlt=false;
+        document.querySelectorAll('.bschi-abo-var').forEach(function(s){if(!s.value)fehlt=true;});
+        if(fehlt){e.preventDefault();alert('Bitte wähle zuerst bei allen Produkten eine Variante aus.');}
+      });
       summe();
     })();
     </script>
     <?php
-    echo '</div>';
+    echo '</div></div>';
     return ob_get_clean();
 } );
 
@@ -257,9 +359,29 @@ add_action( 'template_redirect', function () {
     $lz  = in_array( (int) $_POST['bschi_abo_lz_f'], [ 3, 6, 12 ], true ) ? (int) $_POST['bschi_abo_lz_f'] : 3;
     $liste = bschi_abo_liste_get( get_current_user_id() );
     if ( ! $liste ) { return; }
+    // Variable Produkte brauchen eine gewählte Variante – sonst scheitert die Kasse
+    // an "Bitte wähle Produktoptionen aus". Auswahl passiert auf der Abo-Liste.
+    foreach ( $liste as $e ) {
+        $p = wc_get_product( (int) $e[0] );
+        if ( $p && $p->is_type( 'variable' ) ) {
+            if ( function_exists( 'wc_add_notice' ) ) {
+                wc_add_notice( 'Bitte wähle für „' . $p->get_name() . '“ zuerst eine Variante auf deiner Abo-Liste aus.', 'error' );
+            }
+            return;
+        }
+    }
     WC()->cart->empty_cart();
     foreach ( $liste as $e ) {
-        WC()->cart->add_to_cart( (int) $e[0], max( 1, (int) $e[1] ), 0, [], [ 'bschi_abo_item' => 1 ] );
+        $pid = (int) $e[0];
+        $menge = max( 1, (int) $e[1] );
+        $p = wc_get_product( $pid );
+        if ( ! $p ) { continue; }
+        if ( $p->is_type( 'variation' ) ) {
+            WC()->cart->add_to_cart( $p->get_parent_id(), $menge, $pid,
+                array_filter( $p->get_variation_attributes() ), [ 'bschi_abo_item' => 1 ] );
+        } else {
+            WC()->cart->add_to_cart( $pid, $menge, 0, [], [ 'bschi_abo_item' => 1 ] );
+        }
     }
     $cfg = bschi_abo_config();
     $rabatt = (float) ( $cfg['rabatt_staffel'][ (string) $lz ] ?? 0 );

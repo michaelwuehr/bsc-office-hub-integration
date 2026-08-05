@@ -182,6 +182,7 @@ function bschi_pf_detail_html( array $d ): string {
             . 'href="' . esc_url( $kauf_url ) . '" onclick="return bschiPfKauf(this)">Sofort kaufen</a>';
     }
     $h .= '<button class="bschi-pf__anfragen" onclick="bschiPfAnfrageToggle()">Anfrage senden</button>';
+    $h .= '<a class="bschi-pf__anrufen" href="tel:004999219489010">Anrufen</a>';
     $h .= '</div>';
 
     // Anfrage-Formular (eingeklappt)
@@ -197,11 +198,6 @@ function bschi_pf_detail_html( array $d ): string {
     // Beschreibung
     if ( ! empty( $d['beschreibung'] ) ) {
         $h .= '<div class="bschi-pf__beschr">' . wpautop( esc_html( $d['beschreibung'] ) ) . '</div>';
-    }
-    // Kontakt
-    $kontakt = array_filter( [ $d['kontakt_email'] ?? '', $d['kontakt_telefon'] ?? '' ] );
-    if ( $kontakt ) {
-        $h .= '<div class="bschi-pf__kontakt">Fragen? ' . esc_html( implode( ' · ', $kontakt ) ) . '</div>';
     }
     $h .= '</div>';
     return $h;
@@ -419,8 +415,8 @@ function bschi_pf_styles(): void {
     .bschi-pf__abo-form button,.bschi-pf__anfrage-form button{background:#3d6b2f;color:#fff;border:0;
       border-radius:8px;padding:11px 20px;font-weight:600;cursor:pointer}
     .bschi-pf__abo-msg{margin-top:10px;font-size:.9em;font-weight:600}
-    .bschi-pf__overlay{display:none;position:fixed;inset:0;background:rgba(20,20,16,.6);z-index:99999;
-      align-items:flex-start;justify-content:center;padding:4vh 12px;overflow-y:auto}
+    .bschi-pf__overlay{display:none;position:fixed;inset:0;background:rgba(20,20,16,.6);z-index:2147483000;
+      align-items:flex-start;justify-content:center;padding:clamp(210px,25vh,280px) 12px 4vh;overflow-y:auto}
     .bschi-pf__overlay.offen{display:flex}
     .bschi-pf__modal{position:relative;background:#fff;border-radius:14px;max-width:760px;width:100%;
       padding:26px 28px 30px;margin-bottom:6vh}
@@ -432,25 +428,33 @@ function bschi_pf_styles(): void {
     .bschi-pf__d-preis{margin:10px 0 4px;font-size:1.25em}
     .bschi-pf__hinweis{background:#fdf3e7;border:1px solid #eddcc3;color:#8a5a1d;border-radius:8px;
       padding:10px 14px;margin:10px 0;font-size:.92em}
-    .bschi-pf__cta{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0;align-items:center}
+    .bschi-pf__cta{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0;align-items:stretch}
     .bschi-pf__qty select{padding:10px 12px;border:1px solid #cfcdc4;border-radius:8px;font:inherit}
-    .bschi-pf__kaufen{background:#3d6b2f;color:#fff !important;border-radius:10px;padding:15px 34px;
-      font-size:1.12em;font-weight:700;text-decoration:none;display:inline-block}
-    .bschi-pf__kaufen:hover{background:#325726}
-    .bschi-pf__anfragen{background:#fff;border:2px solid #3d6b2f;color:#3d6b2f;border-radius:10px;
-      padding:12px 22px;font-weight:600;cursor:pointer}
+    /* Identische Button-Maße mit !important – Theme (Flatsome) stylt <button> und <a>
+       unterschiedlich (text-transform, letter-spacing, line-height, margin) */
+    .bschi-pf__cta .bschi-pf__kaufen,.bschi-pf__cta .bschi-pf__anfragen,.bschi-pf__cta .bschi-pf__anrufen{
+      display:inline-flex !important;align-items:center !important;justify-content:center !important;
+      box-sizing:border-box !important;flex:1 1 0;min-width:150px;min-height:54px !important;
+      margin:0 !important;padding:0 20px !important;border-radius:10px !important;
+      font-family:inherit !important;font-size:16px !important;font-weight:700 !important;
+      line-height:1.2 !important;letter-spacing:normal !important;text-transform:none !important;
+      text-decoration:none !important;white-space:nowrap;cursor:pointer;box-shadow:none !important}
+    .bschi-pf__cta .bschi-pf__kaufen{background:#3d6b2f !important;color:#fff !important;
+      border:2px solid #3d6b2f !important}
+    .bschi-pf__cta .bschi-pf__kaufen:hover{background:#325726 !important;border-color:#325726 !important}
+    .bschi-pf__cta .bschi-pf__anfragen,.bschi-pf__cta .bschi-pf__anrufen{background:#fff !important;
+      border:2px solid #3d6b2f !important;color:#3d6b2f !important}
+    .bschi-pf__cta .bschi-pf__anfragen:hover,.bschi-pf__cta .bschi-pf__anrufen:hover{background:#eef3ec !important}
     .bschi-pf__anfrage-form{display:flex;flex-direction:column;gap:10px;background:#f7f6f2;
       border-radius:10px;padding:16px;margin:0 0 14px}
     .bschi-pf__anfrage-form input,.bschi-pf__anfrage-form textarea{padding:10px 13px;
       border:1px solid #cfcdc4;border-radius:8px;font:inherit}
     .bschi-pf__beschr{margin:10px 0;line-height:1.6}
-    .bschi-pf__kontakt{margin-top:18px;padding-top:12px;border-top:1px solid #eceae4;
-      font-size:.9em;color:#6d6b62}
     /* Mobil: Bottom-Sheet statt schwebender Karte (griffiger, nichts klebt oben) */
     @media(max-width:640px){
       .bschi-pf__overlay{padding:0;align-items:flex-end;overflow:hidden}
       .bschi-pf__modal{max-width:none;width:100%;margin:0;border-radius:18px 18px 0 0;
-        max-height:calc(100dvh - 6vh);overflow-y:auto;-webkit-overflow-scrolling:touch;
+        max-height:calc(100dvh - 240px);overflow-y:auto;-webkit-overflow-scrolling:touch;
         padding:10px 16px calc(28px + env(safe-area-inset-bottom,0px))}
       .bschi-pf__modal::before{content:"";display:block;width:44px;height:4px;border-radius:2px;
         background:#d8d6cf;margin:2px auto 10px}
@@ -459,11 +463,11 @@ function bschi_pf_styles(): void {
         z-index:5;box-shadow:0 1px 4px rgba(0,0,0,.12)}
       .bschi-pf__galerie img#bschi-pf-hauptbild{max-height:280px}
       .bschi-pf__d-titel{font-size:1.3em}
-      .bschi-pf__cta{gap:10px}
-      .bschi-pf__qty{flex:1 1 100%;display:flex;align-items:center;gap:8px}
+      .bschi-pf__cta{gap:10px;flex-direction:column;align-items:stretch}
+      .bschi-pf__qty{display:flex;align-items:center;gap:8px}
       .bschi-pf__qty select{flex:1;min-height:46px}
-      .bschi-pf__kaufen{flex:1;text-align:center;padding:15px 10px}
-      .bschi-pf__anfragen{flex:1;padding:13px 10px}
+      .bschi-pf__cta .bschi-pf__kaufen,.bschi-pf__cta .bschi-pf__anfragen,.bschi-pf__cta .bschi-pf__anrufen{
+        flex:none;width:100% !important;min-width:0}
     }
     </style>
     <?php

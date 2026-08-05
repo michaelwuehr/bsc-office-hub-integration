@@ -11,7 +11,13 @@
  *
  * Welche Plattformen angezeigt werden, steuert die Plugin-Einstellung
  * "Social-Media-Plattformen"; der Shortcode-Parameter übersteuert sie.
- * Attribute: [bsc_hub_social limit="8" plattform="instagram,tiktok" columns="4"]
+ * Attribute: [bsc_hub_social limit="8" plattform="instagram,tiktok" columns="4"
+ *            mobile="scroll|stack" columns_mobile="2" limit_mobile="6"]
+ * columns gilt nur ab 601px Breite. Mobil (≤600px) ist der Feed standardmäßig
+ * horizontal wischbar (mobile="scroll"); mobile="stack" oder ein gesetztes
+ * columns_mobile stellt die Karten stattdessen untereinander bzw. ins Raster.
+ * limit_mobile zeigt mobil nur die ersten N Posts (rein per CSS, da das
+ * gerenderte HTML gecacht und für alle Geräte identisch ist).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -52,9 +58,12 @@ add_shortcode( 'bsc_hub_social', function ( $atts ): string {
         return '';
     }
     $a = shortcode_atts( [
-        'limit'     => 8,
-        'plattform' => '',
-        'columns'   => '',
+        'limit'          => 8,
+        'plattform'      => '',
+        'columns'        => '',
+        'columns_mobile' => '',
+        'mobile'         => '',
+        'limit_mobile'   => '',
     ], $atts, 'bsc_hub_social' );
 
     // Plattform-Auswahl: Shortcode-Parameter > Plugin-Einstellung
@@ -71,7 +80,12 @@ add_shortcode( 'bsc_hub_social', function ( $atts ): string {
     if ( empty( $posts ) ) {
         return '';
     }
-    return bschi_social_render( $posts, (int) $a['columns'] );
+    return bschi_social_render( $posts, [
+        'columns'        => (int) $a['columns'],
+        'columns_mobile' => (int) $a['columns_mobile'],
+        'mobile'         => (string) $a['mobile'],
+        'limit_mobile'   => (int) $a['limit_mobile'],
+    ] );
 } );
 
 /** Plattform-Metadaten: [Label, Markenfarbe, Icon-SVG]. */
@@ -91,13 +105,41 @@ function bschi_social_plat_meta( string $plat ): array {
     return $map[ $plat ] ?? [ 'Social', '#4b5a42', '' ];
 }
 
-function bschi_social_render( array $posts, int $columns = 0 ): string {
-    $ajax = admin_url( 'admin-ajax.php' );
-    $grid_style = ( $columns >= 1 && $columns <= 8 ) ? 'grid-template-columns:repeat(' . $columns . ',1fr)' : '';
+function bschi_social_render( array $posts, array $opts = [] ): string {
+    $ajax           = admin_url( 'admin-ajax.php' );
+    $columns        = (int) ( $opts['columns'] ?? 0 );
+    $columns_mobile = (int) ( $opts['columns_mobile'] ?? 0 );
+    $limit_mobile   = (int) ( $opts['limit_mobile'] ?? 0 );
+    $mobile         = (string) ( $opts['mobile'] ?? '' );
+    if ( ! in_array( $mobile, [ 'scroll', 'stack' ], true ) ) {
+        $mobile = $columns_mobile >= 1 ? 'stack' : 'scroll';
+    }
+    // Spaltenzahl als CSS-Variablen, damit die Mobil-Media-Query (≤600px) den
+    // Desktop-Wert übersteuern kann – ein direktes grid-template-columns im
+    // style-Attribut würde jede Media-Query schlagen.
+    $vars = [];
+    if ( $columns >= 1 && $columns <= 8 ) {
+        $vars[] = '--bschi-soc-cols:repeat(' . $columns . ',1fr)';
+    }
+    if ( $columns_mobile >= 1 && $columns_mobile <= 4 ) {
+        $vars[] = '--bschi-soc-cols-m:repeat(' . $columns_mobile . ',1fr)';
+    }
+    $grid_style = implode( ';', $vars );
+    $class      = 'bschi-soc' . ( $mobile === 'scroll' ? ' bschi-soc--mscroll' : '' );
+    // limit_mobile: gleiches HTML für alle Geräte (Cache) – überzählige Posts
+    // werden mobil per Instanz-Klasse + nth-child ausgeblendet.
+    static $inst = 0;
+    $inst++;
+    $limit_css = '';
+    if ( $limit_mobile >= 1 && $limit_mobile < count( $posts ) ) {
+        $class    .= ' bschi-soc--i' . $inst;
+        $limit_css = '<style>@media (max-width:600px){.bschi-soc--i' . $inst . ' .bschi-soc__post:nth-child(n+' . ( $limit_mobile + 1 ) . '){display:none}}</style>';
+    }
     ob_start();
     echo bschi_social_styles();
+    echo $limit_css; // phpcs:ignore -- generiertes CSS aus geprüften Integern
     ?>
-    <div class="bschi-soc" style="<?= esc_attr( $grid_style ); ?>">
+    <div class="<?= esc_attr( $class ); ?>" style="<?= esc_attr( $grid_style ); ?>">
         <?php foreach ( $posts as $p ) :
             $meta    = bschi_social_plat_meta( (string) ( $p['plattform'] ?? '' ) );
             $img     = $ajax . '?action=bschi_social_img&source=' . rawurlencode( $p['source'] ?? 'feed' ) . '&id=' . (int) ( $p['id'] ?? 0 );
@@ -147,7 +189,12 @@ function bschi_social_styles(): string {
     }
     $done = true;
     return '<style id="bschi-social-css">
-    .bschi-soc{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin:0 0 24px;font-family:inherit}
+    .bschi-soc{display:grid;grid-template-columns:var(--bschi-soc-cols,repeat(auto-fill,minmax(300px,1fr)));gap:18px;margin:0 0 24px;font-family:inherit}
+    @media (max-width:600px){
+    .bschi-soc{grid-template-columns:var(--bschi-soc-cols-m,1fr);gap:16px}
+    .bschi-soc--mscroll{display:flex;overflow-x:auto;gap:12px;padding:2px 2px 8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+    .bschi-soc--mscroll .bschi-soc__post{flex:0 0 82%;max-width:330px;scroll-snap-align:start}
+    }
     .bschi-soc__post{background:#fff;border:1px solid #e6e6e6;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.07)}
     .bschi-soc__head{display:flex;align-items:center;gap:10px;padding:11px 14px}
     .bschi-soc__av{width:38px;height:38px;border-radius:50%;flex:none;color:#fff;display:flex;align-items:center;justify-content:center;padding:8px;box-sizing:border-box}

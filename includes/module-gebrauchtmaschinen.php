@@ -471,8 +471,8 @@ function bschi_gm_styles(): void {
     .bschi-gm__abo-form button,.bschi-gm__anfrage-form button{background:#4b5a42;color:#fff;border:0;
       border-radius:8px;padding:11px 20px;font-weight:600;cursor:pointer}
     .bschi-gm__abo-msg{margin-top:10px;font-size:.9em;font-weight:600}
-    .bschi-gm__overlay{display:none;position:fixed;inset:0;background:rgba(20,20,16,.6);z-index:99999;
-      align-items:flex-start;justify-content:center;padding:4vh 12px;overflow-y:auto}
+    .bschi-gm__overlay{display:none;position:fixed;inset:0;background:rgba(20,20,16,.6);z-index:2147483000;
+      align-items:flex-start;justify-content:center;padding:clamp(210px,25vh,280px) 12px 4vh;overflow-y:auto}
     .bschi-gm__overlay.offen{display:flex}
     .bschi-gm__modal{position:relative;background:#fff;border-radius:14px;max-width:760px;width:100%;
       padding:26px 28px 30px;margin-bottom:6vh}
@@ -508,7 +508,7 @@ function bschi_gm_styles(): void {
     @media(max-width:640px){
       .bschi-gm__overlay{padding:0;align-items:flex-end;overflow:hidden}
       .bschi-gm__modal{max-width:none;width:100%;margin:0;border-radius:18px 18px 0 0;
-        max-height:calc(100dvh - 6vh);overflow-y:auto;-webkit-overflow-scrolling:touch;
+        max-height:calc(100dvh - 240px);overflow-y:auto;-webkit-overflow-scrolling:touch;
         padding:10px 16px calc(28px + env(safe-area-inset-bottom,0px))}
       .bschi-gm__modal::before{content:"";display:block;width:44px;height:4px;border-radius:2px;
         background:#d8d6cf;margin:2px auto 10px}

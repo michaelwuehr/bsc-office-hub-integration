@@ -303,7 +303,15 @@ function bschi_render_admin_page(): void {
                         <label><input type="checkbox" name="feature_pricelist" value="1" <?= checked( $s['feature_pricelist'] ?? false, true, false ); ?>>
                             Preisliste für Händler/Hotel-Kunden (My-Account: "Preisliste")</label><br>
                         <label><input type="checkbox" name="feature_chat" value="1" <?= checked( $s['feature_chat'] ?? false, true, false ); ?>>
-                            Woidsiederei-Chat (Floating-Widget für eingeloggte Kunden)</label>
+                            Woidsiederei-Chat (Floating-Widget für eingeloggte Kunden)</label><br>
+                        <label><input type="checkbox" name="feature_gutschein_shop" value="1" <?= checked( $s['feature_gutschein_shop'] ?? false, true, false ); ?>>
+                            Geschenkgutschein-Konfigurator <code>[bsc_gutschein_shop]</code></label><br>
+                        <label><input type="checkbox" name="feature_gebrauchtmaschinen" value="1" <?= checked( $s['feature_gebrauchtmaschinen'] ?? false, true, false ); ?>>
+                            Gebrauchtmaschinen-Verkauf <code>[bsc_gebrauchtmaschinen]</code></label><br>
+                        <label><input type="checkbox" name="feature_pflanzenflohmarkt" value="1" <?= checked( $s['feature_pflanzenflohmarkt'] ?? false, true, false ); ?>>
+                            Pflanzenflohmarkt <code>[bsc_pflanzenflohmarkt]</code></label><br>
+                        <label><input type="checkbox" name="feature_abo" value="1" <?= checked( $s['feature_abo'] ?? false, true, false ); ?>>
+                            Produkt-Abos <code>[bsc_abo_liste]</code> + <code>[bsc_abo_kuendigung]</code> (Details in der Shortcode-Übersicht)</label>
                     </td>
                 </tr>
                 <tr>
@@ -311,14 +319,6 @@ function bschi_render_admin_page(): void {
                     <td>
                         <label><input type="checkbox" name="feature_tracking" value="1" <?= checked( $s['feature_tracking'] ?? false, true, false ); ?>>
                             First-Party-Tracking aktivieren (Kampagnen-Analytics)</label>
-                        <label><input type="checkbox" name="feature_gutschein_shop" value="1" <?= checked( $s['feature_gutschein_shop'] ?? false, true, false ); ?>>
-                            <strong>Geschenkgutschein-Konfigurator</strong> – Shortcode <code>[bsc_gutschein_shop]</code>: Kunden konfigurieren Gutscheine (Online-Shop oder Laden) mit Design-Vorlagen; Ausstellung + PDF-Mail über den Office Hub nach Zahlungseingang.</label>
-                        <label><input type="checkbox" name="feature_gebrauchtmaschinen" value="1" <?= checked( $s['feature_gebrauchtmaschinen'] ?? false, true, false ); ?>>
-                            <strong>Gebrauchtmaschinen-Verkauf</strong> – Shortcode <code>[bsc_gebrauchtmaschinen]</code>: zeigt den Gebraucht-Bestand aus dem Office Hub (Bilder, Exposé, PDFs). „Sofort kaufen" läuft als normaler Shop-Kauf über ein verstecktes Produkt (SKU <code>GM-…</code>); Anfragen + Interessenten-Liste landen im Hub.</label>
-                        <label><input type="checkbox" name="feature_pflanzenflohmarkt" value="1" <?= checked( $s['feature_pflanzenflohmarkt'] ?? false, true, false ); ?>>
-                            <strong>Pflanzenflohmarkt</strong> – Shortcode <code>[bsc_pflanzenflohmarkt]</code>: zeigt den Pflanzen-Bestand aus dem Office Hub (Bilder, Menge). „Sofort kaufen" läuft als normaler Shop-Kauf über ein verstecktes Produkt mit Lagerbestand (SKU <code>PF-…</code>); Verkäufe melden die Stückzahl an den Hub zurück, Anfragen + Interessenten-Liste landen im Hub.</label><br>
-                        <label><input type="checkbox" name="feature_abo" value="1" <?= checked( $s['feature_abo'] ?? false, true, false ); ?>>
-                            <strong>Produkt-Abos</strong> – Abonnieren-Button auf Produktseiten, Abo-Liste (Seite mit <code>[bsc_abo_liste]</code>, Slug <code>/abo/</code>), Mein-Konto-Tab „Abos", Kündigungsseite (<code>[bsc_abo_kuendigung]</code>). Abo-Verwaltung im Office Hub; dort muss zusätzlich das Setting <code>feature_abo</code> aktiv sein.</label>
                         <p class="description">
                             Startet erst nach Consent „Statistik" (Complianz), keine Cookies, Daten gehen
                             ausschließlich an den eigenen Marketing Hub. <strong>Vor der Aktivierung die
@@ -880,7 +880,10 @@ function bschi_render_shortcode_overview(): void {
             'attrs'   => [
                 [ 'limit', '8', 'Anzahl der Posts.' ],
                 [ 'plattform', '(Admin-Default)', 'Komma-Liste, z.B. „instagram,tiktok"; übersteuert die Plugin-Einstellung.' ],
-                [ 'columns', '(Auto)', 'Anzahl der Spalten im Raster.' ],
+                [ 'columns', '(Auto)', 'Anzahl der Spalten im Raster (gilt nur am Desktop, ab 601px).' ],
+                [ 'mobile', 'scroll', 'Mobil-Darstellung (≤600px): „scroll" = horizontal wischbares Karussell (Standard), „stack" = Karten untereinander.' ],
+                [ 'columns_mobile', '(1)', 'Spalten auf Mobilgeräten (1–4); ein gesetzter Wert schaltet automatisch auf „stack".' ],
+                [ 'limit_mobile', '(alle)', 'Zeigt auf Mobilgeräten nur die ersten N Posts.' ],
             ],
             'feature' => 'social_feed',
         ],
@@ -889,6 +892,36 @@ function bschi_render_shortcode_overview(): void {
             'desc'    => 'Offene Stellen / Jobs-Seite: zeigt die im Office Hub gepflegten Stellenanzeigen (Einleitung, Aufgaben, Profil, Wir bieten, Bewerbung) inkl. Initiativbewerbung und AGG-/Gleichbehandlungs-Hinweis. Inhalte werden komplett im Hub gepflegt.',
             'attrs'   => [],
             'feature' => null,
+        ],
+        [
+            'code'    => '[bsc_gutschein_shop]',
+            'desc'    => 'Geschenkgutschein-Konfigurator: Kunden stellen Gutscheine (Online-Shop oder Laden) mit Design-Vorlagen zusammen; Ausstellung + PDF-Mail übernimmt der Office Hub nach Zahlungseingang.',
+            'attrs'   => [],
+            'feature' => 'gutschein_shop',
+        ],
+        [
+            'code'    => '[bsc_gebrauchtmaschinen]',
+            'desc'    => 'Gebrauchtmaschinen-Verkauf: zeigt den Gebraucht-Bestand aus dem Office Hub (Bilder, Exposé, PDFs). „Sofort kaufen" läuft als normaler Shop-Kauf über ein verstecktes Produkt (SKU GM-…); Anfragen + Interessenten-Liste landen im Hub.',
+            'attrs'   => [],
+            'feature' => 'gebrauchtmaschinen',
+        ],
+        [
+            'code'    => '[bsc_pflanzenflohmarkt]',
+            'desc'    => 'Pflanzenflohmarkt: zeigt den Pflanzen-Bestand aus dem Office Hub (Bilder, Menge, Preis). „Sofort kaufen" läuft als normaler Shop-Kauf über ein verstecktes Produkt mit Lagerbestand (SKU PF-…); Verkäufe melden die Stückzahl an den Hub zurück, Anfragen + Interessenten-Liste landen im Hub.',
+            'attrs'   => [],
+            'feature' => 'pflanzenflohmarkt',
+        ],
+        [
+            'code'    => '[bsc_abo_liste]',
+            'desc'    => 'Produkt-Abos: Übersichtsseite der abonnierbaren Produkte (auf eine Seite mit Slug /abo/ setzen). Das Modul ergänzt außerdem den Abonnieren-Button auf Produktseiten und den Mein-Konto-Tab „Abos"; Abo-Verwaltung im Office Hub (dort muss zusätzlich das Setting feature_abo aktiv sein).',
+            'attrs'   => [],
+            'feature' => 'abo',
+        ],
+        [
+            'code'    => '[bsc_abo_kuendigung]',
+            'desc'    => 'Kündigungsseite für Produkt-Abos: Kunde bestätigt die Kündigung über den Link aus der Abo-Mail (Token kommt aus der URL).',
+            'attrs'   => [],
+            'feature' => 'abo',
         ],
         [
             'code'    => '[bsc_hub_fuehrung_confirm]',
